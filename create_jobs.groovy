@@ -172,6 +172,9 @@ modules.each { module ->
                     if ( module.enableXvfb ) {
                         xvfb('Xvfb')
                     }
+
+                    // INFRA-17090
+                    preBuildCleanup()
                 }
 
                 blockOnUpstreamProjects()
