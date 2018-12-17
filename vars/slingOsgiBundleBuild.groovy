@@ -10,7 +10,8 @@ def call(Map params = [:]) {
         mavenGoal: '',
         additionalMavenParams: '',
         rebuildFrequency: '@weekly',
-        enabled: true
+        enabled: true,
+        emailRecipients: []
     ]
 
     def moduleDir = params.containsKey('moduleDir') ? params.moduleDir : '.'
