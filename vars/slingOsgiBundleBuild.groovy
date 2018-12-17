@@ -22,7 +22,7 @@ def call(Map params = [:]) {
                 withMaven(maven: mvnVersion, jdk: jenkinsJdkLabel ) {
                    dir(moduleDir) {
                         sh 'mvn clean install' 
-                    }                
+                    }
                 }
             }
         }
