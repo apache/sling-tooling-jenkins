@@ -48,7 +48,7 @@ def call(Map params = [:]) {
                     def jenkinsJdkLabel = availableJDKs[jdkVersion]
                     if ( !jenkinsJdkLabel )
                         throw new RuntimeException("Unknown JDK version ${jdkVersion}")
-                    withMaven(maven: mvnVersion, jdk: jenkinsJdkLabel, artifactsPublisher(disabled: true) ) {
+                    withMaven(maven: mvnVersion, jdk: jenkinsJdkLabel, options: [artifactsPublisher(disabled: true)] ) {
                     dir(moduleDir) {
                             sh "mvn clean ${goal} ${jobConfig.additionalMavenParams}"
                         }
