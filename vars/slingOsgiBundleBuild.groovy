@@ -6,7 +6,7 @@ def call(Map params = [:]) {
         jdks: [8],
         downstreamProjects: [],
         archivePatterns: [],
-        mavenGoal: 'install',
+        mavenGoal: '',
         additionalMavenParams: '',
         rebuildFrequency: '@weekly',
         enableXvfb: false,
@@ -29,8 +29,10 @@ def call(Map params = [:]) {
             }
         }
 
+        deploy = true
         buildDesc.jdks.each { jdkVersion -> 
-            stage("Build (Java ${jdkVersion})") {
+            def goal = buildDesc.mavenGoal ? buildDesc.mavenGoal : ( deploy ? "deploy" : "verify" )
+            stage("Build (Java ${jdkVersion}, goal : ${goal})") {
                 def jenkinsJdkLabel = availableJDKs[jdkVersion]
                 if ( !jenkinsJdkLabel )
                     throw new RuntimeException("Unknown JDK version ${jdkVersion}")
@@ -40,6 +42,7 @@ def call(Map params = [:]) {
                     }
                 }
             }
+            deploy = false
         }
     }
 }
