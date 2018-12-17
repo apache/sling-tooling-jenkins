@@ -29,27 +29,31 @@ def call(Map params = [:]) {
             if ( fileExists('.sling-module.json') ) {
                 overrides = readJSON file: '.sling-module.json'
                 echo "Jenkins overrides: ${overrides.jenkins}"
-                overrides.jenkins.each { entry ->
-                    buildDesc[entry] = entry;
+                overrides.jenkins.each { key,value ->
+                    buildDesc[key] = value;
                 }
             }
             echo "Final build config: ${buildDesc}"
         }
 
-        deploy = true
-        buildDesc.jdks.each { jdkVersion -> 
-            def goal = buildDesc.mavenGoal ? buildDesc.mavenGoal : ( deploy ? "deploy" : "verify" )
-            stage("Build (Java ${jdkVersion}, ${goal})") {
-                def jenkinsJdkLabel = availableJDKs[jdkVersion]
-                if ( !jenkinsJdkLabel )
-                    throw new RuntimeException("Unknown JDK version ${jdkVersion}")
-                withMaven(maven: mvnVersion, jdk: jenkinsJdkLabel ) {
-                   dir(moduleDir) {
-                        sh "mvn clean ${goal}"
+        if ( buildDesc.enabled ) {
+            deploy = true
+            buildDesc.jdks.each { jdkVersion -> 
+                def goal = buildDesc.mavenGoal ? buildDesc.mavenGoal : ( deploy ? "deploy" : "verify" )
+                stage("Build (Java ${jdkVersion}, ${goal})") {
+                    def jenkinsJdkLabel = availableJDKs[jdkVersion]
+                    if ( !jenkinsJdkLabel )
+                        throw new RuntimeException("Unknown JDK version ${jdkVersion}")
+                    withMaven(maven: mvnVersion, jdk: jenkinsJdkLabel ) {
+                    dir(moduleDir) {
+                            sh "mvn clean ${goal} ${additionalMavenParams}"
+                        }
                     }
                 }
+                deploy = false
             }
-            deploy = false
+        } else {
+            echo "Build is disabled, not building"
         }
     }
 }
