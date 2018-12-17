@@ -39,6 +39,7 @@ def call(Map params = [:]) {
             echo "Final job config: ${jobConfig}"
         }
 
+        // TODO - configure all published to be enabled only for the first build
         if ( jobConfig.enabled ) {
             deploy = true
             jobConfig.jdks.each { jdkVersion -> 
