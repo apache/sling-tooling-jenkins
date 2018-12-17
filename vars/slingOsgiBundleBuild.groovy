@@ -1,5 +1,10 @@
 def call(Map params = [:]) {
     def moduleDir = params.containsKey('moduleDir') ? params.moduleDir : '.'
+    
+    def overrides = readFile('.sling-module.xml')
+    echo "Got overrides ${overrides}"
+    def missingFile = readFile("blah")
+    echo "Got missing file ${missingFile}"
 
     pipeline {
         agent {
