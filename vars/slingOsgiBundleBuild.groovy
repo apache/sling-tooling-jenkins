@@ -49,10 +49,13 @@ def call(Map params = [:]) {
                     def jenkinsJdkLabel = availableJDKs[jdkVersion]
                     if ( !jenkinsJdkLabel )
                         throw new RuntimeException("Unknown JDK version ${jdkVersion}")
-                    withMaven(maven: mvnVersion, jdk: jenkinsJdkLabel ) {
+                    withMaven(maven: mvnVersion, jdk: jenkinsJdkLabel, artifactsPublisher(disabled: true) ) {
                     dir(moduleDir) {
                             sh "mvn clean ${goal} ${jobConfig.additionalMavenParams}"
                         }
+                    }
+                    if ( jobConfig.archivePatterns ) {
+                        archiveArtifacts(artifacts: jobConfig.archivePatterns.join(','), allowEmptyArchive: true)
                     }
                 }
                 deploy = false
