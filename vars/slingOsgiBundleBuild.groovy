@@ -15,7 +15,7 @@ def call(Map params = [:]) {
         }
 
         jdkVersions.each { jdkVersion -> 
-            stage('Build (Java ${jdkVersion}(') {
+            stage("Build (Java ${jdkVersion})") {
                 def jenkinsJdkLabel = availableJDKs[jdkVersion]
                 if ( !jenkinsJdkLabel )
                     throw new RuntimeException("Unknown JDK version ${jdkVersion}")
