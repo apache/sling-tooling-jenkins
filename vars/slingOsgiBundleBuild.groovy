@@ -10,7 +10,6 @@ def call(Map params = [:]) {
         mavenGoal: '',
         additionalMavenParams: '',
         rebuildFrequency: '@weekly',
-        enableXvfb: false,
         enabled: true
     ]
 
