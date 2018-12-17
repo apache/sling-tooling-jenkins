@@ -23,7 +23,9 @@ def call(Map params = [:]) {
 
         post {
             always {
-                junit '**/target/*.xml'
+                dir(moduleDir) {
+                    junit '**/target/surefire-reports/*.xml,**/target/failsafe-reports/*.xml'
+                }
             }
         }
     }
