@@ -1,5 +1,6 @@
 def call(Map params = [:]) {
-    def availableJDKs = [ 8: 'JDK 1.8 (latest)', 9: 'JDK 1.9 (latest)']
+
+    def availableJDKs = [ 8: 'JDK 1.8 (latest)', 9: 'JDK 1.9 (latest)', 10: 'JDK 10 (latest)', 11: 'JDK 11 (latest)' ]
     def mvnVersion = 'Maven 3.3.9'
     // defaults for the build
     def buildDesc = [
