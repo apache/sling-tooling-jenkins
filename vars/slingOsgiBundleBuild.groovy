@@ -19,17 +19,17 @@ def call(Map params = [:]) {
 
     node('ubuntu') {
 
-        def triggers = [
+        def jobTriggers = [
             pollSCM('* * * * *')
         ]
         if ( env.BRANCH_NAME == 'master' )
-            triggers.add(cron('@weekly'))
+            jobTriggers.add(cron('@weekly'))
         if ( upstreamProjectsCsv )
-            triggers.add(upstream(upstreamProjects: upstreamProjectsCsv, threshold: hudson.model.Result.SUCCESS))
+            jobTriggers.add(upstream(upstreamProjects: upstreamProjectsCsv, threshold: hudson.model.Result.SUCCESS))
 
         properties([
             pipelineTriggers([
-                triggers
+                jobTriggers
             ])
         ])
 
