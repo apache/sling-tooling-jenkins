@@ -39,21 +39,28 @@ def call(Map params = [:]) {
             echo "Final job config: ${jobConfig}"
         }
 
-        // TODO - configure all published to be enabled only for the first build
         if ( jobConfig.enabled ) {
-            deploy = true
+            // the reference build is always the first one, and the only one to deploy, archive artifacts, etc
+            // usually this is the build done with the oldest JDK version, to ensure maximum compatibility
+            def reference = true
             jobConfig.jdks.each { jdkVersion -> 
-                def goal = jobConfig.mavenGoal ? jobConfig.mavenGoal : ( deploy ? "deploy" : "verify" )
+                def goal = jobConfig.mavenGoal ? jobConfig.mavenGoal : ( reference ? "deploy" : "verify" )
                 stage("Build (Java ${jdkVersion}, ${goal})") {
                     def jenkinsJdkLabel = availableJDKs[jdkVersion]
                     if ( !jenkinsJdkLabel )
                         throw new RuntimeException("Unknown JDK version ${jdkVersion}")
-                    withMaven(maven: mvnVersion, jdk: jenkinsJdkLabel, options: [artifactsPublisher(disabled: true)] ) {
+                    withMaven(maven: mvnVersion, jdk: jenkinsJdkLabel, 
+                        options: [
+                            artifactsPublisher(disabled: true),
+                            junitPublisher(disabled: !reference),
+                            openTasksPublisher(disabled: !reference),
+                            dependenciesFingerprintPublisher(disabled: !reference)
+                        ] ) {
                     dir(moduleDir) {
                             sh "mvn clean ${goal} ${jobConfig.additionalMavenParams}"
                         }
                     }
-                    if ( jobConfig.archivePatterns ) {
+                    if ( reference && jobConfig.archivePatterns ) {
                         archiveArtifacts(artifacts: jobConfig.archivePatterns.join(','), allowEmptyArchive: true)
                     }
                 }
