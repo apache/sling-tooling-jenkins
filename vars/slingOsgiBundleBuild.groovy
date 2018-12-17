@@ -1,5 +1,5 @@
 def call(Map params = [:]) {
-    def moduleDir = params.containsKey('moduleDir') ? params.buildDir: '.'
+    def moduleDir = params.containsKey('moduleDir') ? params.moduleDir: '.'
 
     pipeline {
         agent {
