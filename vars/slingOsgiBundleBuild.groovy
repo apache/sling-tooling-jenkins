@@ -29,7 +29,7 @@ def call(Map params = [:]) {
         post {
             always {
                 dir(moduleDir) {
-                    junit '**/target/surefire-reports/*.xml,**/target/failsafe-reports/*.xml'
+                    junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml,**/target/failsafe-reports/*.xml'
                 }
             }
         }
