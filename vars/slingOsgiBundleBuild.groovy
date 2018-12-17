@@ -21,7 +21,7 @@ def call(Map params = [:]) {
 
         stage('Init') {
             if ( fileExists('.sling-module.json') ) {
-                overrides = readJson file: '.sling-module.json'
+                overrides = readJSON file: '.sling-module.json'
                 echo "Jenkins overrides: ${overrides.jenkins}"
                 if ( overrides.jenkins?.jdks ) {
                     buildDesc.jdks = overrides.jenkins.jdks
