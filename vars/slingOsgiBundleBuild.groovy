@@ -1,5 +1,5 @@
 def call(Map params = [:]) {
-    def moduleDir = params.containsKey('moduleDir') ? params.moduleDir: '.'
+    def moduleDir = params.containsKey('moduleDir') ? params.moduleDir : '.'
 
     pipeline {
         agent {
@@ -18,6 +18,12 @@ def call(Map params = [:]) {
                         sh 'mvn clean install' 
                     }
                 }
+            }
+        }
+
+        post {
+            always {
+                junit '**/target/*.xml'
             }
         }
     }
