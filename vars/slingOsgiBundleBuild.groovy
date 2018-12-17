@@ -20,10 +20,9 @@ def call(Map params = [:]) {
     node('ubuntu') {
         properties([
             pipelineTriggers([
-                cron(env.BRANCH_NAME == 'master' ? '@weekly' : '')
-                pollSCM('* * * * *')
+                cron(env.BRANCH_NAME == 'master' ? '@weekly' : ''),
+                pollSCM('* * * * *'),
                 upstream(upstreamProjects: upstreamProjectsCsv, threshold: hudson.model.Result.SUCCESS)
-
             ])
         ])
 
