@@ -1,5 +1,9 @@
 def call(Map params = [:]) {
+    def availableJDKs = [ 8: 'JDK 1.8 (latest)', 9: 'JDK 1.9 (latest)']
+    
     def moduleDir = params.containsKey('moduleDir') ? params.moduleDir : '.'
+    def mvnVersion = 'Maven 3.3.9'
+    def jdkVersions = [8, 9]
 
     node('ubuntu') {
 
@@ -10,11 +14,16 @@ def call(Map params = [:]) {
             echo "Got overrides ${overrides}"
         }
 
-        stage('Build') {
-            withMaven(maven: 'Maven 3.3.9', jdk: 'JDK 1.8 (latest)' ) {
-                dir(moduleDir) {
-                    sh 'mvn clean install' 
-                }                
+        jdkVersions.each { jdkVersion -> 
+            stage('Build (Java ${jdkVersion}(') {
+                def jenkinsJdkLabel = availableJDKs[jdkVersion]
+                if ( !jenkinsJdkLabel )
+                    throw new RuntimeException("Unknown JDK version ${jdkVersion}")
+                withMaven(maven: mvnVersion, jdk: jenkinsJdkLabel ) {
+                   dir(moduleDir) {
+                        sh 'mvn clean install' 
+                    }                
+                }
             }
         }
     }
