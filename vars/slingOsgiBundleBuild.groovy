@@ -18,11 +18,18 @@ def call(Map params = [:]) {
         jobConfig.upstreamProjects.join(',') : ''
 
     node('ubuntu') {
+
+        def triggers = [
+            pollSCM('* * * * *')
+        ]
+        if ( env.BRANCH_NAME == 'master' )
+            triggers.add(cron('@weekly'))
+        if ( upstreamProjectsCsv )
+            triggers.add(upstream(upstreamProjects: upstreamProjectsCsv, threshold: hudson.model.Result.SUCCESS))
+
         properties([
             pipelineTriggers([
-                cron(env.BRANCH_NAME == 'master' ? '@weekly' : ''),
-                pollSCM('* * * * *'),
-                upstream(upstreamProjects: upstreamProjectsCsv, threshold: hudson.model.Result.SUCCESS)
+                triggers
             ])
         ])
 
