@@ -16,6 +16,11 @@ def call(Map params = [:]) {
     def moduleDir = params.containsKey('moduleDir') ? params.moduleDir : '.'
 
     node('ubuntu') {
+        properties([
+            pipelineTriggers([
+                cron(env.BRANCH_NAME == 'master' ? '@weekly' : '')
+            ])
+        ])
 
         checkout scm
 
