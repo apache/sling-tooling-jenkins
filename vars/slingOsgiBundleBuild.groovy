@@ -32,13 +32,13 @@ def call(Map params = [:]) {
         deploy = true
         buildDesc.jdks.each { jdkVersion -> 
             def goal = buildDesc.mavenGoal ? buildDesc.mavenGoal : ( deploy ? "deploy" : "verify" )
-            stage("Build (Java ${jdkVersion}, goal : ${goal})") {
+            stage("Build (Java ${jdkVersion}, ${goal})") {
                 def jenkinsJdkLabel = availableJDKs[jdkVersion]
                 if ( !jenkinsJdkLabel )
                     throw new RuntimeException("Unknown JDK version ${jdkVersion}")
                 withMaven(maven: mvnVersion, jdk: jenkinsJdkLabel ) {
                    dir(moduleDir) {
-                        sh 'mvn clean install' 
+                        sh "mvn clean ${goal}"
                     }
                 }
             }
