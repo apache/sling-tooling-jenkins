@@ -14,8 +14,8 @@ def call(Map params = [:]) {
     ]
 
     def moduleDir = params.containsKey('moduleDir') ? params.moduleDir : '.'
-    def upstreamProjectsCsv = upstreamProjects ? 
-        upstreamProjects.join(',') : ''
+    def upstreamProjectsCsv = jobConfig.upstreamProjects ? 
+        jobConfig.upstreamProjects.join(',') : ''
 
     node('ubuntu') {
         properties([
