@@ -29,10 +29,11 @@ def call(Map params = [:]) {
             if ( fileExists('.sling-module.json') ) {
                 overrides = readJSON file: '.sling-module.json'
                 echo "Jenkins overrides: ${overrides.jenkins}"
-                if ( overrides.jenkins?.jdks ) {
-                    buildDesc.jdks = overrides.jenkins.jdks
+                overrides.jenkins.each { entry ->
+                    buildDesc[entry] = entry;
                 }
             }
+            echo "Final build config: ${buildDesc}"
         }
 
         deploy = true
