@@ -19,18 +19,6 @@ def call(Map params = [:]) {
 
     node('ubuntu') {
 
-        def jobTriggers = [
-            pollSCM('* * * * *')
-        ]
-        if ( env.BRANCH_NAME == 'master' )
-            jobTriggers.add(cron('@weekly'))
-        if ( upstreamProjectsCsv )
-            jobTriggers.add(upstream(upstreamProjects: upstreamProjectsCsv, threshold: hudson.model.Result.SUCCESS))
-
-        properties([
-            pipelineTriggers(jobTriggers)
-        ])
-
         checkout scm
 
         stage('Init') {
@@ -43,6 +31,18 @@ def call(Map params = [:]) {
             }
             echo "Final job config: ${jobConfig}"
         }
+
+        def jobTriggers = [
+            pollSCM('* * * * *')
+        ]
+        if ( env.BRANCH_NAME == 'master' )
+            jobTriggers.add(cron(jobConfig.rebuildFrequency))
+        if ( upstreamProjectsCsv )
+            jobTriggers.add(upstream(upstreamProjects: upstreamProjectsCsv, threshold: hudson.model.Result.SUCCESS))
+
+        properties([
+            pipelineTriggers(jobTriggers)
+        ])
 
         if ( jobConfig.enabled ) {
             // the reference build is always the first one, and the only one to deploy, archive artifacts, etc
