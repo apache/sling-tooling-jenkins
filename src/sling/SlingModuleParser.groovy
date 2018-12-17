@@ -21,7 +21,7 @@ class SlingModuleParser {
     }
 
     def parse() {
-        def slingMod = new XmlParser().parse(overrides)
+        def slingMod = new XmlSlurper().parseText(overrides)
         if ( slingMod?.jenkins?.jdks ) {
             def jdks = []
             slingMod.jenkins.jdks.jdk.each { jdks.add it.text() }
