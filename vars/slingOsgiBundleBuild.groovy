@@ -46,7 +46,7 @@ def call(Map params = [:]) {
                         throw new RuntimeException("Unknown JDK version ${jdkVersion}")
                     withMaven(maven: mvnVersion, jdk: jenkinsJdkLabel ) {
                     dir(moduleDir) {
-                            sh "mvn clean ${goal} ${additionalMavenParams}"
+                            sh "mvn clean ${goal} ${buildDesc.additionalMavenParams}"
                         }
                     }
                 }
