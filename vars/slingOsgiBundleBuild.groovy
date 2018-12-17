@@ -28,9 +28,7 @@ def call(Map params = [:]) {
             jobTriggers.add(upstream(upstreamProjects: upstreamProjectsCsv, threshold: hudson.model.Result.SUCCESS))
 
         properties([
-            pipelineTriggers([
-                jobTriggers
-            ])
+            pipelineTriggers(jobTriggers)
         ])
 
         checkout scm
