@@ -64,7 +64,7 @@ def call(Map params = [:]) {
                         archiveArtifacts(artifacts: jobConfig.archivePatterns.join(','), allowEmptyArchive: true)
                     }
                 }
-                deploy = false
+                reference = false
             }
         } else {
             echo "Job is disabled, not building"
