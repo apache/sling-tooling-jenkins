@@ -3,7 +3,7 @@ def call(Map params = [:]) {
     def availableJDKs = [ 8: 'JDK 1.8 (latest)', 9: 'JDK 1.9 (latest)', 10: 'JDK 10 (latest)', 11: 'JDK 11 (latest)' ]
     def mvnVersion = 'Maven 3.3.9'
     // defaults for the build
-    def buildDesc = [
+    def jobConfig = [
         jdks: [8],
         downstreamProjects: [],
         archivePatterns: [],
@@ -30,30 +30,30 @@ def call(Map params = [:]) {
                 overrides = readJSON file: '.sling-module.json'
                 echo "Jenkins overrides: ${overrides.jenkins}"
                 overrides.jenkins.each { key,value ->
-                    buildDesc[key] = value;
+                    jobConfig[key] = value;
                 }
             }
-            echo "Final build config: ${buildDesc}"
+            echo "Final job config: ${jobConfig}"
         }
 
-        if ( buildDesc.enabled ) {
+        if ( jobConfig.enabled ) {
             deploy = true
-            buildDesc.jdks.each { jdkVersion -> 
-                def goal = buildDesc.mavenGoal ? buildDesc.mavenGoal : ( deploy ? "deploy" : "verify" )
+            jobConfig.jdks.each { jdkVersion -> 
+                def goal = jobConfig.mavenGoal ? jobConfig.mavenGoal : ( deploy ? "deploy" : "verify" )
                 stage("Build (Java ${jdkVersion}, ${goal})") {
                     def jenkinsJdkLabel = availableJDKs[jdkVersion]
                     if ( !jenkinsJdkLabel )
                         throw new RuntimeException("Unknown JDK version ${jdkVersion}")
                     withMaven(maven: mvnVersion, jdk: jenkinsJdkLabel ) {
                     dir(moduleDir) {
-                            sh "mvn clean ${goal} ${buildDesc.additionalMavenParams}"
+                            sh "mvn clean ${goal} ${jobConfig.additionalMavenParams}"
                         }
                     }
                 }
                 deploy = false
             }
         } else {
-            echo "Build is disabled, not building"
+            echo "Job is disabled, not building"
         }
     }
 }
