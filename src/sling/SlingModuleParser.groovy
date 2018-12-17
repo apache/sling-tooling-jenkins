@@ -5,7 +5,7 @@ class SlingModuleParser {
     def fileName;
     
     // defaults for the build
-    def buildDesc = {
+    def buildDesc = [
         jdks: [8],
         downstreamProjects: [],
         archivePatterns: [],
@@ -14,7 +14,7 @@ class SlingModuleParser {
         rebuildFrequency: '@weekly',
         enableXvfb: false,
         enabled: true
-    }
+    ]
 
     SlingModuleParser(fileName) {
         this.fileName = fileName;        
