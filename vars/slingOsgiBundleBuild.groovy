@@ -5,7 +5,7 @@ def call(Map params = [:]) {
     // defaults for the build
     def jobConfig = [
         jdks: [8],
-        downstreamProjects: [],
+        upstreamProjects: [],
         archivePatterns: [],
         mavenGoal: '',
         additionalMavenParams: '',
@@ -15,11 +15,16 @@ def call(Map params = [:]) {
     ]
 
     def moduleDir = params.containsKey('moduleDir') ? params.moduleDir : '.'
+    def upstreamProjectsCsv = upstreamProjects ? 
+        upstreamProjects.join(',') : ''
 
     node('ubuntu') {
         properties([
             pipelineTriggers([
                 cron(env.BRANCH_NAME == 'master' ? '@weekly' : '')
+                pollSCM('* * * * *')
+                upstream(upstreamProjects: upstreamProjectsCsv, threshold: hudson.model.Result.SUCCESS)
+
             ])
         ])
 
