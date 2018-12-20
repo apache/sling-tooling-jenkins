@@ -155,5 +155,5 @@ def processResult(def currentBuild, String previous, def recipients) {
     def recipientList = []
     recipients.each { r -> recipientList.add(r) }
 
-    emailExt subject: subject, body: body, replyTo: 'dev@sling.apache.org', recipientProviders: recipientProviders, to: recipientList.join(',')
+    emailext subject: subject, body: body, replyTo: 'dev@sling.apache.org', recipientProviders: recipientProviders, to: recipientList.join(',')
 }
