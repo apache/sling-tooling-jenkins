@@ -110,6 +110,11 @@ def call(Map params = [:]) {
 
 def processResult(def currentBuild, String previous, def recipients) {
 
+    if ( env.BRANCH_NAME != 'master' ) {
+        echo "Not sending notifications on branch name ${env.BRANCH_NAME} != 'master'"
+        return
+    }
+
     if ( !recipients ) {
         echo "No recipients defined, not sending notifications."
         return
