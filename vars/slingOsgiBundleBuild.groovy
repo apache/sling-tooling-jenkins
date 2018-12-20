@@ -101,25 +101,53 @@ def call(Map params = [:]) {
             currentBuild.result = "FAILURE"
             throw e
         } finally {
-            processResult(currentBuild, currentBuild.getPreviousBuild()?.result)
+            processResult(currentBuild, currentBuild.getPreviousBuild()?.result, jobConfig['emailRecipients'])
         }
     }
 }
 
-def processResult(def currentBuild, String previous) {
+def processResult(def currentBuild, String previous, def recipients) {
+
+    if ( !recipients ) {
+        echo "No recipients defined, not sending notifications."
+        return
+    }
 
     String current = currentBuild.result
 
     // values described at https://javadoc.jenkins-ci.org/hudson/model/Result.html
     // Note that we don't handle consecutive failures to prevent mail spamming
 
-    echo "Result : ${current}, previous: ${previous}"
+    def change = null;
+    def recipientProviders = []
 
     // 1. changes from success or unknown to non-success
-    if ( (previous == null || previous == "SUCCESS") && current != "SUCCESS" )
-        echo "Regression"
+    if ( (previous == null || previous == "SUCCESS") && current != "SUCCESS" ) {
+        change = "BROKEN"
+        recipientProviders = [[$class: 'CulpritsRecipientProvider']]
+    }
 
     // 2. changes from non-success to success
     if ( (previous != null && previous != "SUCCESS") && current == "SUCCESS" )
-        echo "Fixed"
+        change = "FIXED"
+
+    if ( change == null ) {
+        echo "No change in status, not sending notifications."
+        return
+    }
+    
+    echo "Status change is ${change}, notifications will be sent."
+
+    def subject = "[Jenkins] ${currentBuild.fullDisplayName} is ${change}"
+    def body = """
+        Please see ${currentBuild.absoluteUrl} for details.
+
+        No further emails will be send until the status of the build is changed.
+
+        Build log:
+
+        ${BUILD_LOG}
+    """
+
+    emailExt subject: subject, body: body, replyTo: 'dev@sling.apache.org', recipientProviders: recipientProviders, to: 'commits@sling.apache.org'
 }
