@@ -84,7 +84,7 @@ def call(Map params = [:]) {
 
 def processResult(def currentBuild, String previous) {
 
-    String current = currentBuild.result
+    String current = currentBuild.currentResult
 
     // values described at https://javadoc.jenkins-ci.org/hudson/model/Result.html
     // Note that we don't handle consecutive failures to prevent mail spamming
