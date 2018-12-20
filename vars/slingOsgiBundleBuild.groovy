@@ -34,9 +34,6 @@ def call(Map params = [:]) {
                 echo "Final job config: ${jobConfig}"
             }
 
-            def jobTriggers = [
-                pollSCM('* * * * *')
-            ]
             if ( env.BRANCH_NAME == 'master' )
                 jobTriggers.add(cron(jobConfig.rebuildFrequency))
             if ( upstreamProjectsCsv )
