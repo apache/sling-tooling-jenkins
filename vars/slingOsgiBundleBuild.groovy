@@ -77,8 +77,27 @@ def call(Map params = [:]) {
             } else {
                 echo "Job is disabled, not building"
             }
-        } catch (Exception e) {
-            // TODO - how to handle aborted builds?
+        // exception handling copied from https://github.com/apache/maven-jenkins-lib/blob/d6c76aaea9df19ad88439eba4f9d1ad6c9e272bd/vars/asfMavenTlpPlgnBuild.groovy
+        } catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e) {
+            // this ambiguous condition means a user probably aborted
+            if (e.causes.size() == 0) {
+                currentBuild.result = "ABORTED"
+            } else {
+                currentBuild.result = "FAILURE"
+            }
+            throw e
+        } catch (hudson.AbortException e) {
+            // this ambiguous condition means during a shell step, user probably aborted
+            if (e.getMessage().contains('script returned exit code 143')) {
+                currentBuild.result = "ABORTED"
+            } else {
+                currentBuild.result = "FAILURE"
+            }
+            throw e
+        } catch (InterruptedException e) {
+            currentBuild.result = "ABORTED"
+            throw e
+        } catch (Throwable e) {
             currentBuild.result = "FAILURE"
             throw e
         } finally {
