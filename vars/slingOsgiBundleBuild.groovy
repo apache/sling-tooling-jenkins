@@ -34,6 +34,7 @@ def call(Map params = [:]) {
                 echo "Final job config: ${jobConfig}"
             }
 
+            def jobTriggers = []
             if ( env.BRANCH_NAME == 'master' )
                 jobTriggers.add(cron(jobConfig.rebuildFrequency))
             if ( upstreamProjectsCsv )
