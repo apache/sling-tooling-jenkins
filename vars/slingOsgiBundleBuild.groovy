@@ -72,10 +72,15 @@ def call(Map params = [:]) {
                         }
                     }
                     reference = false
+                    currentBuild.result = "SUCCESS"
                 }
             } else {
                 echo "Job is disabled, not building"
             }
+        } catch (Exception e) {
+            // TODO - how to handle aborted builds?
+            currentBuild.result = "FAILURE"
+            throw e
         } finally {
             processResult(currentBuild, currentBuild.getPreviousBuild()?.result)
         }
@@ -84,12 +89,12 @@ def call(Map params = [:]) {
 
 def processResult(def currentBuild, String previous) {
 
-    String current = currentBuild.currentResult
+    String current = currentBuild.result
 
     // values described at https://javadoc.jenkins-ci.org/hudson/model/Result.html
     // Note that we don't handle consecutive failures to prevent mail spamming
 
-    echo "Result status : ${current}, previous: ${previous}"
+    echo "Result : ${current}, previous: ${previous}"
 
     // 1. changes from success or unknown to non-success
     if ( (previous == null || previous == "SUCCESS") && current != "SUCCESS" )
