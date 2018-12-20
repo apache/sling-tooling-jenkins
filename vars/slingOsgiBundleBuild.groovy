@@ -77,7 +77,7 @@ def call(Map params = [:]) {
                 echo "Job is disabled, not building"
             }
         } finally {
-            processResult(currentBuild, currentBuild.getPreviousResult()?.result)
+            processResult(currentBuild, currentBuild.getPreviousBuild()?.result)
         }
     }
 }
