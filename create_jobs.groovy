@@ -77,8 +77,8 @@ manifest.project.each { project ->
 // so that artifacts built using the oldest version are
 // deployed for maximum compatibility
 def defaultJdks = ["1.8"]
-def defaultMvn = "Maven 3.3.9"
-def defaultSlave = "ubuntu && !H21 && !H22 && !H24 && !H26 && !H29 && !H32 && !H34 && !H35 && !ubuntu-2"
+def defaultMvn = "Maven (latest)"
+def defaultSlave = "ubuntu"
 
 def jdkMapping = [
     "1.7": "JDK 1.7 (latest)",
