@@ -141,17 +141,15 @@ def processResult(def currentBuild, String previous, def recipients) {
     echo "Status change is ${change}, notifications will be sent."
 
     def subject = "[Jenkins] ${currentBuild.fullDisplayName} is ${change}"
-    def body = """
-        Please see ${currentBuild.absoluteUrl} for details.
+    def body = """Please see ${currentBuild.absoluteUrl} for details.
 
-        No further emails will be send until the status of the build is changed.
-
-        Build log:
-
+No further emails will be sent until the status of the build is changed.
     """
-    
-    body += '${BUILD_LOG}'
 
+    if ( change == "BROKEN") {
+        body += "Build log follows below:\n\n"
+        body += '${BUILD_LOG}'
+    }
     def recipientList = []
     recipients.each { r -> recipientList.add(r) }
 
