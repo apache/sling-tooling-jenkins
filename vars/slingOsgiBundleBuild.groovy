@@ -101,7 +101,9 @@ def call(Map params = [:]) {
             currentBuild.result = "FAILURE"
             throw e
         } finally {
-            processResult(currentBuild, currentBuild.getPreviousBuild()?.result, jobConfig['emailRecipients'])
+            stage("Notifications") {
+                processResult(currentBuild, currentBuild.getPreviousBuild()?.result, jobConfig['emailRecipients'])
+            }
         }
     }
 }
@@ -149,5 +151,5 @@ def processResult(def currentBuild, String previous, def recipients) {
         ${BUILD_LOG}
     """
 
-    emailExt subject: subject, body: body, replyTo: 'dev@sling.apache.org', recipientProviders: recipientProviders, to: 'commits@sling.apache.org'
+    emailExt subject: subject, body: body, replyTo: 'dev@sling.apache.org', recipientProviders: recipientProviders, to: recipients.join(',')
 }
