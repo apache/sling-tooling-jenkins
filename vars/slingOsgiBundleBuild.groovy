@@ -141,11 +141,16 @@ def processResult(def currentBuild, String previous, def recipients) {
     echo "Status change is ${change}, notifications will be sent."
 
     def subject = "[Jenkins] ${currentBuild.fullDisplayName} is ${change}"
+    def body = """
+        Please see ${currentBuild.absoluteUrl} for details.
 
-    emailExt subject: subject, body: """Please see ${currentBuild.absoluteUrl} for details.
+        No further emails will be send until the status of the build is changed.
 
-No further emails will be sent until the status of the build is changed.
-Build log:
+        Build log:
 
-${BUILD_LOG}""", replyTo: 'dev@sling.apache.org', recipientProviders: recipientProviders, to: recipients.join(',')
+    """
+    
+    body += '${BUILD_LOG}'
+
+    emailExt subject: subject, body: body, replyTo: 'dev@sling.apache.org', recipientProviders: recipientProviders, to: recipients.join(',')
 }
