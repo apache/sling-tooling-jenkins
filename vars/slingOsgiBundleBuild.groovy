@@ -31,9 +31,6 @@ def call(Map params = [:]) {
                 }
             }
             echo "Final job config: ${jobConfig}"
-            if ( fileExists('.gitmodules') ) {
-                sh 'git submodule update --init'
-            }
         }
 
         def jobTriggers = [
