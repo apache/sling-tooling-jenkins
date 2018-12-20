@@ -25,7 +25,8 @@ manifest.project.each { project ->
     def connection = new URL(rawUrlPrefix + "/" + jobName + "/master/Jenkinsfile").openConnection()
     module.pipeline = connection.responseCode == 200
     if ( module.pipeline ) {
-        println "${jobName}: Jenkinsfile found, creating pipeline job"
+        println "${jobName}: Jenkinsfile found, skipping as they are now managed by a Github org folder."
+        createJob = false
     }
 
     if ( slingMod?.jenkins?.jdks ) {
@@ -91,137 +92,111 @@ def jdkMapping = [
 
 modules.each { module ->
 
-    if ( module.pipeline ) {
-        multibranchPipelineJob(module.location) {
+    def jdks = module.jdks ?: defaultJdks
+    def deploy = true
+
+    def downstreamProjects = module.downstream?: []
+    def downstreamEntries = modules.findAll { downstreamProjects.contains(it.location) }
+    def downstreamJobs = []
+
+    downstreamEntries.each { downstreamEntry ->
+        def downstreamJdks = downstreamEntry.jdks?: defaultJdks
+        def downstreamLocation = downstreamEntry.location
+        downstreamJdks.each { downstreamJdk ->
+            downstreamJobs.add(jobName(downstreamLocation,downstreamJdk))
+        }
+    }
+
+    jdks.each { jdkKey ->
+        mavenJob(jobName(module.location, jdkKey)) {
+
             description('''
-    <p>This build was automatically generated and any manual edits will be lost.</p>
-    <p>See <a href="https://cwiki.apache.org/confluence/display/SLING/Sling+Jenkins+Setup">Sling Jenkins Setup</a>
-    for more details</p>''')
-            branchSources {
-                github {
-                    scanCredentialsId('sling-github-token') // needs repo:status scope
-                    repoOwner('apache')
-                    repository(module.location)
+<p>This build was automatically generated and any manual edits will be lost.</p>
+<p>See <a href="https://cwiki.apache.org/confluence/display/SLING/Sling+Jenkins+Setup">Sling Jenkins Setup</a>
+for more details</p>''')
+
+            logRotator {
+                numToKeep(15)
+            }
+
+            scm {
+                git {
+                    remote {
+                        github('apache/' + module.location)
+                    }
+                    branches('master')
                 }
             }
 
-            orphanedItemStrategy {
-                discardOldItems {
-                    numToKeep(15)
-                }
-            }
+            blockOnUpstreamProjects()
 
             triggers {
-                periodic(1)
-            }            
-        }
-    } else {
-        def jdks = module.jdks ?: defaultJdks
-        def deploy = true
-
-        def downstreamProjects = module.downstream?: []
-        def downstreamEntries = modules.findAll { downstreamProjects.contains(it.location) }
-        def downstreamJobs = []
-
-        downstreamEntries.each { downstreamEntry ->
-            def downstreamJdks = downstreamEntry.jdks?: defaultJdks
-            def downstreamLocation = downstreamEntry.location
-            downstreamJdks.each { downstreamJdk ->
-                downstreamJobs.add(jobName(downstreamLocation,downstreamJdk))
+                snapshotDependencies(true)
+                scm('H/15 * * * *')
+                def rebuildFrequency = module.rebuildFrequency ? module.rebuildFrequency : '@weekly'
+                cron(rebuildFrequency)
             }
-        }
 
-        jdks.each { jdkKey ->
-            mavenJob(jobName(module.location, jdkKey)) {
-
-                description('''
-    <p>This build was automatically generated and any manual edits will be lost.</p>
-    <p>See <a href="https://cwiki.apache.org/confluence/display/SLING/Sling+Jenkins+Setup">Sling Jenkins Setup</a>
-    for more details</p>''')
-
-                logRotator {
-                    numToKeep(15)
+            // timeout if the job takes 4 times longer than the average
+            // duration of the last 3 jobs. Defaults to 30 minutes if
+            // no previous job executions are found
+            wrappers {
+                timeout {
+                    elastic(400, 3, 30)
                 }
 
-                scm {
-                    git {
-                        remote {
-                            github('apache/' + module.location)
-                        }
-                        branches('master')
-                    }
+                if ( module.enableXvfb ) {
+                    xvfb('Xvfb')
                 }
 
-                blockOnUpstreamProjects()
+                // INFRA-17090
+                preBuildCleanup()
+            }
 
-                triggers {
-                    snapshotDependencies(true)
-                    scm('H/15 * * * *')
-                    def rebuildFrequency = module.rebuildFrequency ? module.rebuildFrequency : '@weekly'
-                    cron(rebuildFrequency)
+            blockOnUpstreamProjects()
+
+            jdk(jdkMapping.get(jdkKey))
+
+            mavenInstallation(defaultMvn)
+
+            // we have no use for archived artifacts since they are deployed on
+            // repository.apache.org so speed up the build a bit (and probably
+            // save on disk space)
+            archivingDisabled(true)
+
+            label(defaultSlave)
+
+            // ensure that only one job deploys artifacts
+            // besides being less efficient, it's not sure which
+            // job is triggered first and we may end up with a
+            // mix of Java 7 and Java 8 artifacts for projects which
+            // use these 2 versions
+            def extraGoalsParams = module.extraGoalsParams ?: ""
+            def goal = module.mavenGoal ? module.mavenGoal : ( deploy ? "deploy" : "verify" )
+            goals( "-U clean ${goal} ${extraGoalsParams}")
+
+            publishers {
+                if ( deploy && downstreamJobs ) {
+                    downstream(downstreamJobs)
                 }
 
-                // timeout if the job takes 4 times longer than the average
-                // duration of the last 3 jobs. Defaults to 30 minutes if
-                // no previous job executions are found
-                wrappers {
-                    timeout {
-                        elastic(400, 3, 30)
-                    }
-
-                    if ( module.enableXvfb ) {
-                        xvfb('Xvfb')
-                    }
-
-                    // INFRA-17090
-                    preBuildCleanup()
-                }
-
-                blockOnUpstreamProjects()
-
-                jdk(jdkMapping.get(jdkKey))
-
-                mavenInstallation(defaultMvn)
-
-                // we have no use for archived artifacts since they are deployed on
-                // repository.apache.org so speed up the build a bit (and probably
-                // save on disk space)
-                archivingDisabled(true)
-
-                label(defaultSlave)
-
-                // ensure that only one job deploys artifacts
-                // besides being less efficient, it's not sure which
-                // job is triggered first and we may end up with a
-                // mix of Java 7 and Java 8 artifacts for projects which
-                // use these 2 versions
-                def extraGoalsParams = module.extraGoalsParams ?: ""
-                def goal = module.mavenGoal ? module.mavenGoal : ( deploy ? "deploy" : "verify" )
-                goals( "-U clean ${goal} ${extraGoalsParams}")
-
-                publishers {
-                    if ( deploy && downstreamJobs ) {
-                        downstream(downstreamJobs)
-                    }
-
-                    if (module.archivePatterns) {
-                        archiveArtifacts() {
-                            module.archivePatterns.each { archiveEntry ->
-                                pattern(archiveEntry)
-                            }
+                if (module.archivePatterns) {
+                    archiveArtifacts() {
+                        module.archivePatterns.each { archiveEntry ->
+                            pattern(archiveEntry)
                         }
                     }
-
-                    // TODO - can we remove the glob and rely on the defaults?
-                    archiveJunit('**/target/surefire-reports/*.xml,**/target/failsafe-reports/*.xml') {
-                        allowEmptyResults()
-                    }
-                    // send emails for each broken build, notify individuals as well
-                    mailer('commits@sling.apache.org', false, true)
                 }
 
-                deploy = false
+                // TODO - can we remove the glob and rely on the defaults?
+                archiveJunit('**/target/surefire-reports/*.xml,**/target/failsafe-reports/*.xml') {
+                    allowEmptyResults()
+                }
+                // send emails for each broken build, notify individuals as well
+                mailer('commits@sling.apache.org', false, true)
             }
+
+            deploy = false
         }
     }
 }
