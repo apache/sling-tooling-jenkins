@@ -152,5 +152,8 @@ def processResult(def currentBuild, String previous, def recipients) {
     
     body += '${BUILD_LOG}'
 
-    emailExt subject: subject, body: body, replyTo: 'dev@sling.apache.org', recipientProviders: recipientProviders, to: recipients.toArray().join(',')
+    def recipientList = []
+    recipients.each { r -> recipientList.add(r) }
+
+    emailExt subject: subject, body: body, replyTo: 'dev@sling.apache.org', recipientProviders: recipientProviders, to: recipientList.join(',')
 }
