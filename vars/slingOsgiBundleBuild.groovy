@@ -63,7 +63,7 @@ def call(Map params = [:]) {
                             dependenciesFingerprintPublisher(disabled: !reference)
                         ] ) {
                     dir(moduleDir) {
-                            sh "mvn clean ${goal} ${jobConfig.additionalMavenParams}"
+                            sh "mvn -U clean ${goal} ${jobConfig.additionalMavenParams}"
                         }
                     }
                     if ( reference && jobConfig.archivePatterns ) {
