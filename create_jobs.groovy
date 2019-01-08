@@ -16,6 +16,7 @@ manifest.project.each { project ->
     def createJob = true
     try {
         slingMod = new XmlParser().parse(rawUrlPrefix + "/" + jobName + "/master/.sling-module.xml")
+        println "${jobName}: found custom .sling-module.xml"
     } catch ( FileNotFoundException e) {
         println "${jobName}: no .sling-module.xml found, using defaults"
     }
@@ -49,6 +50,11 @@ manifest.project.each { project ->
     if ( slingMod?.jenkins?.mavenGoal ) {
         module.mavenGoal = slingMod.jenkins.mavenGoal.text()
         println "${jobName}: overriding default maven goal with value ${module.mavenGoal}"
+    }
+
+    if ( slingMod?.jenkins?.additionalMavenParams ) {
+        module.extraGoalsParams = slingMod.jenkins.additionalMavenParams.text()
+        println "${jobName}: overriding additional maven parameters with value ${module.extraGoalsParams}"
     }
 
     if ( slingMod?.jenkins?.rebuildFrequency ) {
