@@ -8,39 +8,11 @@ def call(Map params = [:]) {
         mainNodeLabel : 'ubuntu'
     ]
 
-    // defaults for the build
-    def jobConfig = [
-        jdks: [8],
-        upstreamProjects: [],
-        archivePatterns: [],
-        mavenGoal: '',
-        additionalMavenParams: '',
-        rebuildFrequency: '@weekly',
-        enabled: true,
-        emailRecipients: []
-    ]
-
-    def upstreamProjectsCsv = jobConfig.upstreamProjects ? 
-        SlingJenkinsHelper.jsonArrayToCsv(jobConfig.upstreamProjects) : ''
-
     node(globalConfig.mainNodeLabel) {
 
-        def helper = new SlingJenkinsHelper(jobConfig: jobConfig, currentBuild: currentBuild, script: this)
+        def helper = new SlingJenkinsHelper(currentBuild: currentBuild, script: this)
 
-        helper.runWithErrorHandling({
-            checkout scm
-
-            stage('Init') {
-                if ( fileExists('.sling-module.json') ) {
-                    overrides = readJSON file: '.sling-module.json'
-                    echo "Jenkins overrides: ${overrides.jenkins}"
-                    overrides.jenkins.each { key,value ->
-                        jobConfig[key] = value;
-                    }
-                }
-                echo "Final job config: ${jobConfig}"
-            }
-
+        helper.runWithErrorHandling({ jobConfig ->
             def jobTriggers = []
             if ( env.BRANCH_NAME == 'master' )
                 jobTriggers.add(cron(jobConfig.rebuildFrequency))

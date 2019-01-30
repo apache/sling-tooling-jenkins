@@ -20,6 +20,17 @@ package org.apache.sling.jenkins;
 
 class SlingJenkinsHelper implements Serializable {
 
+    def static DEFAULT_JOB_CONFIG = [
+        jdks: [8],
+        upstreamProjects: [],
+        archivePatterns: [],
+        mavenGoal: '',
+        additionalMavenParams: '',
+        rebuildFrequency: '@weekly',
+        enabled: true,
+        emailRecipients: []
+    ]
+
     // workaround for "Scripts not permitted to use method net.sf.json.JSONArray join java.lang.String"
     def static jsonArrayToCsv(net.sf.json.JSONArray items) {
         def result = []
@@ -30,12 +41,40 @@ class SlingJenkinsHelper implements Serializable {
     }
 
     def currentBuild;
-    def jobConfig;
+    def jobConfig = [:]
     def script;
 
     def runWithErrorHandling(Closure build) {
         try {
-            build.call()
+
+            script.stage('Init') {
+                jobConfig <<  DEFAULT_JOB_CONFIG
+                script.checkout scm
+                if ( fileExists('.sling-module.json') ) {
+                    overrides = script.readJSON file: '.sling-module.json'
+                    script.echo "Jenkins overrides: ${overrides.jenkins}"
+                    overrides.jenkins.each { key,value ->
+                        jobConfig[key] = value;
+                    }
+                }
+                script.echo "Final job config: ${jobConfig}"
+            }
+                
+            script.stage('Configure Job') {
+                def upstreamProjectsCsv = jobConfig.upstreamProjects ? 
+                    jsonArrayToCsv(jobConfig.upstreamProjects) : ''
+                def jobTriggers = []
+                if ( script.env.BRANCH_NAME == 'master' )
+                    jobTriggers.add(script.cron(jobConfig.rebuildFrequency))
+                if ( upstreamProjectsCsv )
+                    jobTriggers.add(script.upstream(upstreamProjects: upstreamProjectsCsv, threshold: hudson.model.Result.SUCCESS))
+
+                script.properties([
+                    script.pipelineTriggers(jobTriggers)
+                ])
+            }
+
+            build.call(jobConfig)
         // exception handling copied from https://github.com/apache/maven-jenkins-lib/blob/d6c76aaea9df19ad88439eba4f9d1ad6c9e272bd/vars/asfMavenTlpPlgnBuild.groovy
         } catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e) {
             // this ambiguous condition means a user probably aborted
