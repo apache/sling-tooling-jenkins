@@ -1,3 +1,5 @@
+import org.apache.sling.jenkins.SlingJenkinsHelper;
+
 def call(Map params = [:]) {
 
     def globalConfig = [
@@ -19,11 +21,13 @@ def call(Map params = [:]) {
     ]
 
     def upstreamProjectsCsv = jobConfig.upstreamProjects ? 
-        jsonArrayToCsv(jobConfig.upstreamProjects) : ''
+        SlingJenkinsHelper.jsonArrayToCsv(jobConfig.upstreamProjects) : ''
 
     node(globalConfig.mainNodeLabel) {
 
-        try {
+        def helper = new SlingJenkinsHelper(jobConfig: jobConfig, currentBuild: currentBuild)
+
+        helper.runWithErrorHandling({
             checkout scm
 
             stage('Init') {
@@ -61,95 +65,8 @@ def call(Map params = [:]) {
             } else {
                 echo "Job is disabled, not building"
             }
-        // exception handling copied from https://github.com/apache/maven-jenkins-lib/blob/d6c76aaea9df19ad88439eba4f9d1ad6c9e272bd/vars/asfMavenTlpPlgnBuild.groovy
-        } catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e) {
-            // this ambiguous condition means a user probably aborted
-            if (e.causes.size() == 0) {
-                currentBuild.result = "ABORTED"
-            } else {
-                currentBuild.result = "FAILURE"
-            }
-            throw e
-        } catch (hudson.AbortException e) {
-            // this ambiguous condition means during a shell step, user probably aborted
-            if (e.getMessage().contains('script returned exit code 143')) {
-                currentBuild.result = "ABORTED"
-            } else {
-                currentBuild.result = "FAILURE"
-            }
-            throw e
-        } catch (InterruptedException e) {
-            currentBuild.result = "ABORTED"
-            throw e
-        } catch (Throwable e) {
-            currentBuild.result = "FAILURE"
-            throw e
-        } finally {
-            stage("Notifications") {
-                processResult(currentBuild, currentBuild.getPreviousBuild()?.result, jobConfig['emailRecipients'])
-            }
-        }
+        }, currentBuild, jobConfig)
     }
-}
-
-def processResult(def currentBuild, String previous, def recipients) {
-
-    if ( env.BRANCH_NAME != 'master' ) {
-        echo "Not sending notifications on branch name ${env.BRANCH_NAME} != 'master'"
-        return
-    }
-
-    if ( !recipients ) {
-        echo "No recipients defined, not sending notifications."
-        return
-    }
-
-    String current = currentBuild.result
-
-    // values described at https://javadoc.jenkins-ci.org/hudson/model/Result.html
-    // Note that we don't handle consecutive failures to prevent mail spamming
-
-    def change = null;
-    def recipientProviders = []
-
-    // 1. changes from success or unknown to non-success
-    if ( (previous == null || previous == "SUCCESS") && current != "SUCCESS" ) {
-        change = "BROKEN"
-        recipientProviders = [[$class: 'CulpritsRecipientProvider']]
-    }
-
-    // 2. changes from non-success to success
-    if ( (previous != null && previous != "SUCCESS") && current == "SUCCESS" )
-        change = "FIXED"
-
-    if ( change == null ) {
-        echo "No change in status, not sending notifications."
-        return
-    }
-    
-    echo "Status change is ${change}, notifications will be sent."
-
-    def subject = "[Jenkins] ${currentBuild.fullDisplayName} is ${change}"
-    def body = """Please see ${currentBuild.absoluteUrl} for details.
-
-No further emails will be sent until the status of the build is changed.
-    """
-
-    if ( change == "BROKEN") {
-        body += "Build log follows below:\n\n"
-        body += '${BUILD_LOG}'
-    }
-
-    emailext subject: subject, body: body, replyTo: 'dev@sling.apache.org', recipientProviders: recipientProviders, to: jsonArrayToCsv(recipients)
-}
-
-// workaround for "Scripts not permitted to use method net.sf.json.JSONArray join java.lang.String"
-def jsonArrayToCsv(net.sf.json.JSONArray items) {
-    def result = []
-    items.each { item ->
-        result.add(item)
-    }
-    return result.join(',')
 }
 
 def defineStage(def globalConfig, def jobConfig, def jdkVersion, def isReferenceStage) {
@@ -178,7 +95,7 @@ def defineStage(def globalConfig, def jobConfig, def jdkVersion, def isReference
             sh "mvn -U clean ${goal} ${additionalMavenParams}"
         }
         if ( isReferenceStage && jobConfig.archivePatterns ) {
-            archiveArtifacts(artifacts: jsonArrayToCsv(jobConfig.archivePatterns), allowEmptyArchive: true)
+            archiveArtifacts(artifacts: SlingJenkinsHelper.jsonArrayToCsv(jobConfig.archivePatterns), allowEmptyArchive: true)
         }
     }
 
