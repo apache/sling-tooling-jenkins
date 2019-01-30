@@ -73,6 +73,8 @@ class SlingJenkinsHelper implements Serializable {
             return
         }
 
+        def recipients = jobConfig['emailRecipients']
+
         if ( !recipients ) {
             echo "No recipients defined, not sending notifications."
             return
