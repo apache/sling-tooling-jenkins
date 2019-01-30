@@ -31,6 +31,7 @@ def call(Map params = [:]) {
                         jobConfig[key] = value;
                     }
                 }
+                jobConfig.mainNodeLabel = mainNodeLabel; // propagate to defineStage
                 echo "Final job config: ${jobConfig}"
             }
 
@@ -155,7 +156,7 @@ def defineStage(def jobConfig, def jdkVersion, def isReferenceStage) {
     def branchConfig = jobConfig?.branches?."$env.BRANCH_NAME"
     def additionalMavenParams = branchConfig.additionalMavenParams ?
         branchConfig.additionalMavenParams : jobConfig.additionalMavenParams
-    if ( branchConfig.nodeLabel && branchConfig.nodeLabel != mainNodeLabel )
+    if ( branchConfig.nodeLabel && branchConfig.nodeLabel != jobConfig.mainNodeLabel )
         echo "Should run on nodes with label ${branchConfig.nodeLabel}, but not implemented for now"
 
     return {
