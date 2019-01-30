@@ -47,6 +47,13 @@ def call(Map params = [:]) {
                 // the reference build is always the first one, and the only one to deploy, archive artifacts, etc
                 // usually this is the build done with the oldest JDK version, to ensure maximum compatibility
                 def reference = true
+
+                def branchConfigs = jobConfig.?branches ?: [:]
+                def branchConfig = branchConfigs[env.BRANCH_NAME]
+                if ( branchConfig ) {
+                    echo "Found branch-specific config: ${branchConfig}, but ignoring for now."
+                }
+
                 jobConfig.jdks.each { jdkVersion -> 
                     def goal = jobConfig.mavenGoal ? jobConfig.mavenGoal : ( reference ? "deploy" : "verify" )
                     stage("Build (Java ${jdkVersion}, ${goal})") {
