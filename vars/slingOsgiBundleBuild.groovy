@@ -51,7 +51,7 @@ def call(Map params = [:]) {
 
                 jobConfig.jdks.each { jdkVersion -> 
                     stageDefinition = defineStage(jobConfig, jdkVersion, isReferenceStage)
-                    stageDefinition()
+                    stageDefinition.call()
                     isReferenceStage = false
                     currentBuild.result = "SUCCESS"
                 }
