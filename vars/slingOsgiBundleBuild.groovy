@@ -48,8 +48,7 @@ def call(Map params = [:]) {
                 // usually this is the build done with the oldest JDK version, to ensure maximum compatibility
                 def reference = true
 
-                def branchConfigs = jobConfig?.branches ?: [:]
-                def branchConfig = branchConfigs[env.BRANCH_NAME]
+                def branchConfig = jobConfig?.branches?."$env.BRANCH_NAME"
                 if ( branchConfig ) {
                     echo "Found branch-specific config: ${branchConfig}, but ignoring for now."
                 }
