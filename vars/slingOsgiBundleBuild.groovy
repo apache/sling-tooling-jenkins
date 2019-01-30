@@ -14,7 +14,6 @@ def call(Map params = [:]) {
         emailRecipients: []
     ]
 
-    def moduleDir = params.containsKey('moduleDir') ? params.moduleDir : '.'
     def upstreamProjectsCsv = jobConfig.upstreamProjects ? 
         jsonArrayToCsv(jobConfig.upstreamProjects) : ''
 
@@ -61,9 +60,8 @@ def call(Map params = [:]) {
                                 openTasksPublisher(disabled: !reference),
                                 dependenciesFingerprintPublisher(disabled: !reference)
                             ] ) {
-                        dir(moduleDir) {
-                                sh "mvn -U clean ${goal} ${jobConfig.additionalMavenParams}"
-                            }
+                        
+                            sh "mvn -U clean ${goal} ${jobConfig.additionalMavenParams}"
                         }
                         if ( reference && jobConfig.archivePatterns ) {
                             archiveArtifacts(artifacts: jsonArrayToCsv(jobConfig.archivePatterns), allowEmptyArchive: true)
