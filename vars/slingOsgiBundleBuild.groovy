@@ -2,6 +2,7 @@ def call(Map params = [:]) {
 
     def availableJDKs = [ 8: 'JDK 1.8 (latest)', 9: 'JDK 1.9 (latest)', 10: 'JDK 10 (latest)', 11: 'JDK 11 (latest)' ]
     def mvnVersion = 'Maven (latest)'
+    def mainNodeLabel = 'ubuntu'
     // defaults for the build
     def jobConfig = [
         jdks: [8],
@@ -17,7 +18,7 @@ def call(Map params = [:]) {
     def upstreamProjectsCsv = jobConfig.upstreamProjects ? 
         jsonArrayToCsv(jobConfig.upstreamProjects) : ''
 
-    node('ubuntu') {
+    node(mainNodeLabel) {
 
         try {
             checkout scm
@@ -46,34 +47,12 @@ def call(Map params = [:]) {
             if ( jobConfig.enabled ) {
                 // the reference build is always the first one, and the only one to deploy, archive artifacts, etc
                 // usually this is the build done with the oldest JDK version, to ensure maximum compatibility
-                def reference = true
-
-                def branchConfig = jobConfig?.branches?."$env.BRANCH_NAME"
-                if ( branchConfig ) {
-                    echo "Found branch-specific config: ${branchConfig}, but ignoring for now."
-                }
+                def isReferenceStage = true
 
                 jobConfig.jdks.each { jdkVersion -> 
-                    def goal = jobConfig.mavenGoal ? jobConfig.mavenGoal : ( reference ? "deploy" : "verify" )
-                    stage("Build (Java ${jdkVersion}, ${goal})") {
-                        def jenkinsJdkLabel = availableJDKs[jdkVersion]
-                        if ( !jenkinsJdkLabel )
-                            throw new RuntimeException("Unknown JDK version ${jdkVersion}")
-                        withMaven(maven: mvnVersion, jdk: jenkinsJdkLabel, 
-                            options: [
-                                artifactsPublisher(disabled: true),
-                                junitPublisher(disabled: !reference),
-                                openTasksPublisher(disabled: !reference),
-                                dependenciesFingerprintPublisher(disabled: !reference)
-                            ] ) {
-                        
-                            sh "mvn -U clean ${goal} ${jobConfig.additionalMavenParams}"
-                        }
-                        if ( reference && jobConfig.archivePatterns ) {
-                            archiveArtifacts(artifacts: jsonArrayToCsv(jobConfig.archivePatterns), allowEmptyArchive: true)
-                        }
-                    }
-                    reference = false
+                    stageDefinition = defineStage(jobConfig, jdkVersion, isReferenceStage)
+                    stageDefinition()
+                    isReferenceStage = false
                     currentBuild.result = "SUCCESS"
                 }
             } else {
@@ -168,4 +147,35 @@ def jsonArrayToCsv(net.sf.json.JSONArray items) {
         result.add(item)
     }
     return result.join(',')
+}
+
+def defineStage(def jobConfig, def jdkVersion, def isReferenceStage) {
+
+    def goal = jobConfig.mavenGoal ? jobConfig.mavenGoal : ( isReferenceStage ? "deploy" : "verify" )
+    def branchConfig = jobConfig?.branches?."$env.BRANCH_NAME"
+    def additionalMavenParams = ${branchConfig.additionalMavenParams} ?
+        ${branchConfig.additionalMavenParams} : jobConfig.additionalMavenParams
+    if ( branchConfig.nodeLabel && branchConfig.nodeLabel != mainNodeLabel )
+        echo "Should run on nodes with label ${branchConfig.nodeLabel}, but not implemented for now"
+
+    return {
+        stage("Build (Java ${jdkVersion}, ${goal})") {
+            def jenkinsJdkLabel = availableJDKs[jdkVersion]
+            if ( !jenkinsJdkLabel )
+                throw new RuntimeException("Unknown JDK version ${jdkVersion}")
+            withMaven(maven: mvnVersion, jdk: jenkinsJdkLabel,
+                options: [
+                    artifactsPublisher(disabled: true),
+                    junitPublisher(disabled: !isReferenceStage),
+                    openTasksPublisher(disabled: !isReferenceStage),
+                    dependenciesFingerprintPublisher(disabled: !isReferenceStage)
+                ] ) {
+
+                sh "mvn -U clean ${goal} ${additionalMavenParams}"
+            }
+            if ( isReferenceStage && jobConfig.archivePatterns ) {
+                archiveArtifacts(artifacts: jsonArrayToCsv(jobConfig.archivePatterns), allowEmptyArchive: true)
+            }
+        }
+    }
 }
