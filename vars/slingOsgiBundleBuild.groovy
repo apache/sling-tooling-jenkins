@@ -1,8 +1,11 @@
 def call(Map params = [:]) {
 
-    def availableJDKs = [ 8: 'JDK 1.8 (latest)', 9: 'JDK 1.9 (latest)', 10: 'JDK 10 (latest)', 11: 'JDK 11 (latest)' ]
-    def mvnVersion = 'Maven (latest)'
-    def mainNodeLabel = 'ubuntu'
+    def globalConfig = [
+        availableJDKs = [ 8: 'JDK 1.8 (latest)', 9: 'JDK 1.9 (latest)', 10: 'JDK 10 (latest)', 11: 'JDK 11 (latest)' ],
+        mvnVersion = 'Maven (latest)',
+        mainNodeLabel = 'ubuntu'
+    ]
+
     // defaults for the build
     def jobConfig = [
         jdks: [8],
@@ -18,7 +21,7 @@ def call(Map params = [:]) {
     def upstreamProjectsCsv = jobConfig.upstreamProjects ? 
         jsonArrayToCsv(jobConfig.upstreamProjects) : ''
 
-    node(mainNodeLabel) {
+    node(globalConfig.mainNodeLabel) {
 
         try {
             checkout scm
@@ -31,7 +34,6 @@ def call(Map params = [:]) {
                         jobConfig[key] = value;
                     }
                 }
-                jobConfig.mainNodeLabel = mainNodeLabel; // propagate to defineStage
                 echo "Final job config: ${jobConfig}"
             }
 
@@ -51,7 +53,7 @@ def call(Map params = [:]) {
                 def isReferenceStage = true
 
                 jobConfig.jdks.each { jdkVersion -> 
-                    stageDefinition = defineStage(jobConfig, jdkVersion, isReferenceStage)
+                    stageDefinition = defineStage(globalConfig, jobConfig, jdkVersion, isReferenceStage)
                     stageDefinition.call()
                     isReferenceStage = false
                     currentBuild.result = "SUCCESS"
@@ -150,21 +152,21 @@ def jsonArrayToCsv(net.sf.json.JSONArray items) {
     return result.join(',')
 }
 
-def defineStage(def jobConfig, def jdkVersion, def isReferenceStage) {
+def defineStage(def globalConfig, def jobConfig, def jdkVersion, def isReferenceStage) {
 
     def goal = jobConfig.mavenGoal ? jobConfig.mavenGoal : ( isReferenceStage ? "deploy" : "verify" )
     def branchConfig = jobConfig?.branches?."$env.BRANCH_NAME"
     def additionalMavenParams = branchConfig.additionalMavenParams ?
         branchConfig.additionalMavenParams : jobConfig.additionalMavenParams
-    if ( branchConfig.nodeLabel && branchConfig.nodeLabel != jobConfig.mainNodeLabel )
+    if ( branchConfig.nodeLabel && branchConfig.nodeLabel != globalConfig.mainNodeLabel )
         echo "Should run on nodes with label ${branchConfig.nodeLabel}, but not implemented for now"
 
     return {
         stage("Build (Java ${jdkVersion}, ${goal})") {
-            def jenkinsJdkLabel = availableJDKs[jdkVersion]
+            def jenkinsJdkLabel = globalConfig.availableJDKs[jdkVersion]
             if ( !jenkinsJdkLabel )
                 throw new RuntimeException("Unknown JDK version ${jdkVersion}")
-            withMaven(maven: mvnVersion, jdk: jenkinsJdkLabel,
+            withMaven(maven: globalConfig.mvnVersion, jdk: jenkinsJdkLabel,
                 options: [
                     artifactsPublisher(disabled: true),
                     junitPublisher(disabled: !isReferenceStage),
