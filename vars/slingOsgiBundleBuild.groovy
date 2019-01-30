@@ -163,5 +163,5 @@ def jsonArrayToCsv(net.sf.json.JSONArray items) {
     items.each { item ->
         result.add(item)
     }
-    return items.join(',')
+    return result.join(',')
 }
