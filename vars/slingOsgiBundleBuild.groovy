@@ -162,6 +162,10 @@ def defineStage(def globalConfig, def jobConfig, def jdkVersion, def isReference
     if ( !jenkinsJdkLabel )
         throw new RuntimeException("Unknown JDK version ${jdkVersion}")
 
+    // do not deploy artifacts built from PRs or feature branches
+    if ( goal == "deploy" && env.BRANCH_NAME != "master" )
+        goal = "verify"
+
     def invocation = {
         withMaven(maven: globalConfig.mvnVersion, jdk: jenkinsJdkLabel,
             options: [
