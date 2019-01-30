@@ -1,9 +1,9 @@
 def call(Map params = [:]) {
 
     def globalConfig = [
-        availableJDKs = [ 8: 'JDK 1.8 (latest)', 9: 'JDK 1.9 (latest)', 10: 'JDK 10 (latest)', 11: 'JDK 11 (latest)' ],
-        mvnVersion = 'Maven (latest)',
-        mainNodeLabel = 'ubuntu'
+        availableJDKs : [ 8: 'JDK 1.8 (latest)', 9: 'JDK 1.9 (latest)', 10: 'JDK 10 (latest)', 11: 'JDK 11 (latest)' ],
+        mvnVersion : 'Maven (latest)',
+        mainNodeLabel : 'ubuntu'
     ]
 
     // defaults for the build
