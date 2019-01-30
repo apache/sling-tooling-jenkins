@@ -25,7 +25,7 @@ def call(Map params = [:]) {
 
     node(globalConfig.mainNodeLabel) {
 
-        def helper = new SlingJenkinsHelper(jobConfig: jobConfig, currentBuild: currentBuild)
+        def helper = new SlingJenkinsHelper(jobConfig: jobConfig, currentBuild: currentBuild, script: this)
 
         helper.runWithErrorHandling({
             checkout scm

@@ -31,6 +31,7 @@ class SlingJenkinsHelper implements Serializable {
 
     def currentBuild;
     def jobConfig;
+    def script;
 
     def runWithErrorHandling(Closure build) {
         try {
@@ -59,7 +60,7 @@ class SlingJenkinsHelper implements Serializable {
             currentBuild.result = "FAILURE"
             throw e
         } finally {
-            stage("Notifications") {
+            script.stage("Notifications") {
                 sendNotifications()
             }
         }
