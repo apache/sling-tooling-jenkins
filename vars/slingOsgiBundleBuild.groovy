@@ -192,7 +192,7 @@ def defineStage(def globalConfig, def jobConfig, def jdkVersion, def isReference
 def wrapInNode(Closure invocation, def nodeLabel) {
     return {
         node(nodeLabel) {
-            def.call()
+            invocation.call()
         }
     }
 }
