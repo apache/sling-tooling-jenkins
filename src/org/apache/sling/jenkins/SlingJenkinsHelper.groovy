@@ -68,8 +68,8 @@ class SlingJenkinsHelper implements Serializable {
 
     def sendNotifications() {
 
-        if ( env.BRANCH_NAME != 'master' ) {
-            echo "Not sending notifications on branch name ${env.BRANCH_NAME} != 'master'"
+        if ( script.env.BRANCH_NAME != 'master' ) {
+            echo "Not sending notifications on branch name ${script.env.BRANCH_NAME} != 'master'"
             return
         }
 
@@ -114,6 +114,6 @@ No further emails will be sent until the status of the build is changed.
             body += '${BUILD_LOG}'
         }
 
-        emailext subject: subject, body: body, replyTo: 'dev@sling.apache.org', recipientProviders: recipientProviders, to: jsonArrayToCsv(recipients)
+        script.emailext subject: subject, body: body, replyTo: 'dev@sling.apache.org', recipientProviders: recipientProviders, to: jsonArrayToCsv(recipients)
     }
  }
