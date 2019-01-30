@@ -76,7 +76,7 @@ class SlingJenkinsHelper implements Serializable {
         def recipients = jobConfig['emailRecipients']
 
         if ( !recipients ) {
-            echo "No recipients defined, not sending notifications."
+            script.echo "No recipients defined, not sending notifications."
             return
         }
 
@@ -99,11 +99,11 @@ class SlingJenkinsHelper implements Serializable {
             change = "FIXED"
 
         if ( change == null ) {
-            echo "No change in status, not sending notifications."
+            script.echo "No change in status, not sending notifications."
             return
         }
         
-        echo "Status change is ${change}, notifications will be sent."
+        script.echo "Status change is ${change}, notifications will be sent."
 
         def subject = "[Jenkins] ${currentBuild.fullDisplayName} is ${change}"
         def body = """Please see ${currentBuild.absoluteUrl} for details.
