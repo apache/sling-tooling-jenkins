@@ -158,27 +158,41 @@ def defineStage(def globalConfig, def jobConfig, def jdkVersion, def isReference
     def branchConfig = jobConfig?.branches?."$env.BRANCH_NAME"
     def additionalMavenParams = branchConfig.additionalMavenParams ?
         branchConfig.additionalMavenParams : jobConfig.additionalMavenParams
+    def jenkinsJdkLabel = globalConfig.availableJDKs[jdkVersion]
+    if ( !jenkinsJdkLabel )
+        throw new RuntimeException("Unknown JDK version ${jdkVersion}")
+
+    def invocation = {
+        withMaven(maven: globalConfig.mvnVersion, jdk: jenkinsJdkLabel,
+            options: [
+                artifactsPublisher(disabled: true),
+                junitPublisher(disabled: !isReferenceStage),
+                openTasksPublisher(disabled: !isReferenceStage),
+                dependenciesFingerprintPublisher(disabled: !isReferenceStage)
+            ] ) {
+
+            sh "mvn -U clean ${goal} ${additionalMavenParams}"
+        }
+        if ( isReferenceStage && jobConfig.archivePatterns ) {
+            archiveArtifacts(artifacts: jsonArrayToCsv(jobConfig.archivePatterns), allowEmptyArchive: true)
+        }
+    }
+
     if ( branchConfig.nodeLabel && branchConfig.nodeLabel != globalConfig.mainNodeLabel )
-        echo "Should run on nodes with label ${branchConfig.nodeLabel}, but not implemented for now"
+        invocation = wrapInNode(invocation,branchConfig.nodeLabel)
+
 
     return {
         stage("Build (Java ${jdkVersion}, ${goal})") {
-            def jenkinsJdkLabel = globalConfig.availableJDKs[jdkVersion]
-            if ( !jenkinsJdkLabel )
-                throw new RuntimeException("Unknown JDK version ${jdkVersion}")
-            withMaven(maven: globalConfig.mvnVersion, jdk: jenkinsJdkLabel,
-                options: [
-                    artifactsPublisher(disabled: true),
-                    junitPublisher(disabled: !isReferenceStage),
-                    openTasksPublisher(disabled: !isReferenceStage),
-                    dependenciesFingerprintPublisher(disabled: !isReferenceStage)
-                ] ) {
+            invocation.call()
+        }
+    }
+}
 
-                sh "mvn -U clean ${goal} ${additionalMavenParams}"
-            }
-            if ( isReferenceStage && jobConfig.archivePatterns ) {
-                archiveArtifacts(artifacts: jsonArrayToCsv(jobConfig.archivePatterns), allowEmptyArchive: true)
-            }
+def wrapInNode(Closure invocation, def nodeLabel) {
+    return {
+        node(nodeLabel) {
+            def.call()
         }
     }
 }
