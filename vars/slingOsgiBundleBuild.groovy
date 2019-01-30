@@ -153,8 +153,8 @@ def defineStage(def jobConfig, def jdkVersion, def isReferenceStage) {
 
     def goal = jobConfig.mavenGoal ? jobConfig.mavenGoal : ( isReferenceStage ? "deploy" : "verify" )
     def branchConfig = jobConfig?.branches?."$env.BRANCH_NAME"
-    def additionalMavenParams = ${branchConfig.additionalMavenParams} ?
-        ${branchConfig.additionalMavenParams} : jobConfig.additionalMavenParams
+    def additionalMavenParams = branchConfig.additionalMavenParams ?
+        branchConfig.additionalMavenParams : jobConfig.additionalMavenParams
     if ( branchConfig.nodeLabel && branchConfig.nodeLabel != mainNodeLabel )
         echo "Should run on nodes with label ${branchConfig.nodeLabel}, but not implemented for now"
 
