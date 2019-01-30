@@ -65,7 +65,7 @@ def call(Map params = [:]) {
             } else {
                 echo "Job is disabled, not building"
             }
-        }, currentBuild, jobConfig)
+        })
     }
 }
 
