@@ -155,7 +155,7 @@ def jsonArrayToCsv(net.sf.json.JSONArray items) {
 def defineStage(def globalConfig, def jobConfig, def jdkVersion, def isReferenceStage) {
 
     def goal = jobConfig.mavenGoal ? jobConfig.mavenGoal : ( isReferenceStage ? "deploy" : "verify" )
-    def branchConfig = jobConfig?.branches?."$env.BRANCH_NAME"
+    def branchConfig = jobConfig?.branches?."$env.BRANCH_NAME" ?: [:]
     def additionalMavenParams = branchConfig.additionalMavenParams ?
         branchConfig.additionalMavenParams : jobConfig.additionalMavenParams
     def jenkinsJdkLabel = globalConfig.availableJDKs[jdkVersion]
