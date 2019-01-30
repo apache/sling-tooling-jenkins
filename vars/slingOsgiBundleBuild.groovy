@@ -16,7 +16,7 @@ def call(Map params = [:]) {
 
     def moduleDir = params.containsKey('moduleDir') ? params.moduleDir : '.'
     def upstreamProjectsCsv = jobConfig.upstreamProjects ? 
-        jobConfig.upstreamProjects.join(',') : ''
+        jsonArrayToCsv(jobConfig.upstreamProjects) : ''
 
     node('ubuntu') {
 
@@ -66,7 +66,7 @@ def call(Map params = [:]) {
                             }
                         }
                         if ( reference && jobConfig.archivePatterns ) {
-                            archiveArtifacts(artifacts: jobConfig.archivePatterns.join(','), allowEmptyArchive: true)
+                            archiveArtifacts(artifacts: jsonArrayToCsv(jobConfig.archivePatterns), allowEmptyArchive: true)
                         }
                     }
                     reference = false
@@ -153,8 +153,15 @@ No further emails will be sent until the status of the build is changed.
         body += "Build log follows below:\n\n"
         body += '${BUILD_LOG}'
     }
-    def recipientList = []
-    recipients.each { r -> recipientList.add(r) }
 
-    emailext subject: subject, body: body, replyTo: 'dev@sling.apache.org', recipientProviders: recipientProviders, to: recipientList.join(',')
+    emailext subject: subject, body: body, replyTo: 'dev@sling.apache.org', recipientProviders: recipientProviders, to: jsonArrayToCsv(recipients)
+}
+
+// workaround for "Scripts not permitted to use method net.sf.json.JSONArray join java.lang.String"
+def jsonArrayToCsv(net.sf.json.JSONArray items) {
+    def result = []
+    items.each { item ->
+        result.add(item)
+    }
+    return items.join(',')
 }
