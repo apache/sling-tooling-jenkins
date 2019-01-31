@@ -18,17 +18,6 @@
  */
 package org.apache.sling.jenkins;
 
-def static DEFAULT_JOB_CONFIG = [
-    jdks: [8],
-    upstreamProjects: [],
-    archivePatterns: [],
-    mavenGoal: '',
-    additionalMavenParams: '',
-    rebuildFrequency: '@weekly',
-    enabled: true,
-    emailRecipients: []
-]
-
 // workaround for "Scripts not permitted to use method net.sf.json.JSONArray join java.lang.String"
 def static jsonArrayToCsv(net.sf.json.JSONArray items) {
     def result = []
@@ -39,14 +28,22 @@ def static jsonArrayToCsv(net.sf.json.JSONArray items) {
 }
 
 
-
 def runWithErrorHandling(Closure build) {
-    def jobConfig = [:]
+    def jobConfig = [
+        jdks: [8],
+        upstreamProjects: [],
+        archivePatterns: [],
+        mavenGoal: '',
+        additionalMavenParams: '',
+        rebuildFrequency: '@weekly',
+        enabled: true,
+        emailRecipients: []
+    ]
+
     try {
         timeout(time:15, unit: 'MINUTES', activity: true) {
 
             stage('Init') {
-                jobConfig <<  DEFAULT_JOB_CONFIG
                 checkout scm
                 if ( fileExists('.sling-module.json') ) {
                     overrides = readJSON file: '.sling-module.json'
