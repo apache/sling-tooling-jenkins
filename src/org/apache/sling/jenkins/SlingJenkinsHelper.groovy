@@ -40,14 +40,6 @@ class SlingJenkinsHelper implements Serializable {
         return result.join(',')
     }
 
-    static def ignoreExceptions(Closure closure) {
-        try {
-            closure.call()
-        } catch ( Exception e ) {
-            script.echo "[IGNORED]: " + e
-        }
-    }
-
     def currentBuild;
     def jobConfig = [:]
     def script;
@@ -172,5 +164,13 @@ No further emails will be sent until the status of the build is changed.
         }
 
         script.emailext subject: subject, body: body, replyTo: 'dev@sling.apache.org', recipientProviders: recipientProviders, to: jsonArrayToCsv(recipients)
+    }
+    
+    def ignoreExceptions(Closure closure) {
+        try {
+            closure.call()
+        } catch ( Exception e ) {
+            script.echo "[IGNORED]: " + e
+        }
     }
 }
