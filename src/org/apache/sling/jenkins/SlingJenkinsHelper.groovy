@@ -47,8 +47,10 @@ class SlingJenkinsHelper implements Serializable {
     def runWithErrorHandling(Closure build) {
         try {
 
-            script.echo "script bindings: ${script.variables}"
-            script.echo "our bindings: ${this.bindings}"
+            ignoreExceptions({
+                script.echo "script bindings: ${script.getVariables()}"
+                script.echo "our bindings: ${this.bindings}"
+            })
 
             script.timeout(time:15, unit: 'MINUTES', activity: true) {
 
@@ -163,4 +165,12 @@ No further emails will be sent until the status of the build is changed.
 
         script.emailext subject: subject, body: body, replyTo: 'dev@sling.apache.org', recipientProviders: recipientProviders, to: jsonArrayToCsv(recipients)
     }
+ }
+
+ def ignoreExceptions(Closure closure) {
+     try {
+         closure.call()
+     } catch ( Exception e ) {
+         script.echo "[IGNORED]: " + e
+     }
  }
