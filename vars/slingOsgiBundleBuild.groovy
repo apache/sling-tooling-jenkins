@@ -10,7 +10,7 @@ def call(Map params = [:]) {
 
     node(globalConfig.mainNodeLabel) {
 
-        def helper = new SlingJenkinsHelper(currentBuild: currentBuild, script: this)
+        def helper = new SlingJenkinsHelper()
 
         helper.runWithErrorHandling({ jobConfig ->
             if ( jobConfig.enabled ) {
