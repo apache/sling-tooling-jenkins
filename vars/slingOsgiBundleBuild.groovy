@@ -13,16 +13,6 @@ def call(Map params = [:]) {
         def helper = new SlingJenkinsHelper(currentBuild: currentBuild, script: this)
 
         helper.runWithErrorHandling({ jobConfig ->
-            def jobTriggers = []
-            if ( env.BRANCH_NAME == 'master' )
-                jobTriggers.add(cron(jobConfig.rebuildFrequency))
-            if ( upstreamProjectsCsv )
-                jobTriggers.add(upstream(upstreamProjects: upstreamProjectsCsv, threshold: hudson.model.Result.SUCCESS))
-
-            properties([
-                pipelineTriggers(jobTriggers)
-            ])
-
             if ( jobConfig.enabled ) {
                 // the reference build is always the first one, and the only one to deploy, archive artifacts, etc
                 // usually this is the build done with the oldest JDK version, to ensure maximum compatibility
