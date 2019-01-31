@@ -18,155 +18,147 @@
  */
 package org.apache.sling.jenkins;
 
-class SlingJenkinsHelper implements Serializable {
+def static DEFAULT_JOB_CONFIG = [
+    jdks: [8],
+    upstreamProjects: [],
+    archivePatterns: [],
+    mavenGoal: '',
+    additionalMavenParams: '',
+    rebuildFrequency: '@weekly',
+    enabled: true,
+    emailRecipients: []
+]
 
-    def static DEFAULT_JOB_CONFIG = [
-        jdks: [8],
-        upstreamProjects: [],
-        archivePatterns: [],
-        mavenGoal: '',
-        additionalMavenParams: '',
-        rebuildFrequency: '@weekly',
-        enabled: true,
-        emailRecipients: []
-    ]
-
-    // workaround for "Scripts not permitted to use method net.sf.json.JSONArray join java.lang.String"
-    def static jsonArrayToCsv(net.sf.json.JSONArray items) {
-        def result = []
-        items.each { item ->
-            result.add(item)
-        }
-        return result.join(',')
+// workaround for "Scripts not permitted to use method net.sf.json.JSONArray join java.lang.String"
+def static jsonArrayToCsv(net.sf.json.JSONArray items) {
+    def result = []
+    items.each { item ->
+        result.add(item)
     }
+    return result.join(',')
+}
 
-    def currentBuild;
-    def jobConfig = [:]
-    def script;
+def runWithErrorHandling(Closure build) {
 
-    def runWithErrorHandling(Closure build) {
-        script {
-            try {
-                script.timeout(time:15, unit: 'MINUTES', activity: true) {
+    try {
+        script.timeout(time:15, unit: 'MINUTES', activity: true) {
 
-                    script.stage('Init') {
-                        jobConfig <<  DEFAULT_JOB_CONFIG
-                        script.checkout script.scm
-                        if ( script.fileExists('.sling-module.json') ) {
-                            overrides = script.readJSON file: '.sling-module.json'
-                            script.echo "Jenkins overrides: ${overrides.jenkins}"
-                            overrides.jenkins.each { key,value ->
-                                jobConfig[key] = value;
-                            }
-                        }
-                        script.echo "Final job config: ${jobConfig}"
+            script.stage('Init') {
+                jobConfig <<  DEFAULT_JOB_CONFIG
+                script.checkout script.scm
+                if ( script.fileExists('.sling-module.json') ) {
+                    overrides = script.readJSON file: '.sling-module.json'
+                    script.echo "Jenkins overrides: ${overrides.jenkins}"
+                    overrides.jenkins.each { key,value ->
+                        jobConfig[key] = value;
                     }
-                        
-                    script.stage('Configure Job') {
-                        def upstreamProjectsCsv = jobConfig.upstreamProjects ? 
-                            jsonArrayToCsv(jobConfig.upstreamProjects) : ''
-                        def jobTriggers = []
-                        if ( script.env.BRANCH_NAME == 'master' )
-                            jobTriggers.add(script.cron(jobConfig.rebuildFrequency))
-                        if ( upstreamProjectsCsv )
-                            jobTriggers.add(script.upstream(upstreamProjects: upstreamProjectsCsv, threshold: hudson.model.Result.SUCCESS))
-
-                        script.properties([
-                            script.pipelineTriggers(jobTriggers)
-                        ])
-                    }
-
-                    build.call(jobConfig)
                 }
-            // exception handling copied from https://github.com/apache/maven-jenkins-lib/blob/d6c76aaea9df19ad88439eba4f9d1ad6c9e272bd/vars/asfMavenTlpPlgnBuild.groovy
-            } catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e) {
-                // this ambiguous condition means a user probably aborted
-                if (e.causes.size() == 0) {
-                    currentBuild.result = "ABORTED"
-                } else {
-                    currentBuild.result = "FAILURE"
-                }
-                throw e
-            } catch (hudson.AbortException e) {
-                // this ambiguous condition means during a shell step, user probably aborted
-                if (e.getMessage().contains('script returned exit code 143')) {
-                    currentBuild.result = "ABORTED"
-                } else {
-                    currentBuild.result = "FAILURE"
-                }
-                throw e
-            } catch (InterruptedException e) {
-                currentBuild.result = "ABORTED"
-                throw e
-            } catch (Throwable e) {
-                currentBuild.result = "FAILURE"
-                throw e
-            } finally {
-                script.stage("Notifications") {
-                    sendNotifications()
-                }
+                script.echo "Final job config: ${jobConfig}"
             }
+                
+            script.stage('Configure Job') {
+                def upstreamProjectsCsv = jobConfig.upstreamProjects ? 
+                    jsonArrayToCsv(jobConfig.upstreamProjects) : ''
+                def jobTriggers = []
+                if ( script.env.BRANCH_NAME == 'master' )
+                    jobTriggers.add(script.cron(jobConfig.rebuildFrequency))
+                if ( upstreamProjectsCsv )
+                    jobTriggers.add(script.upstream(upstreamProjects: upstreamProjectsCsv, threshold: hudson.model.Result.SUCCESS))
+
+                script.properties([
+                    script.pipelineTriggers(jobTriggers)
+                ])
+            }
+
+            build.call(jobConfig)
+        }
+    // exception handling copied from https://github.com/apache/maven-jenkins-lib/blob/d6c76aaea9df19ad88439eba4f9d1ad6c9e272bd/vars/asfMavenTlpPlgnBuild.groovy
+    } catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e) {
+        // this ambiguous condition means a user probably aborted
+        if (e.causes.size() == 0) {
+            currentBuild.result = "ABORTED"
+        } else {
+            currentBuild.result = "FAILURE"
+        }
+        throw e
+    } catch (hudson.AbortException e) {
+        // this ambiguous condition means during a shell step, user probably aborted
+        if (e.getMessage().contains('script returned exit code 143')) {
+            currentBuild.result = "ABORTED"
+        } else {
+            currentBuild.result = "FAILURE"
+        }
+        throw e
+    } catch (InterruptedException e) {
+        currentBuild.result = "ABORTED"
+        throw e
+    } catch (Throwable e) {
+        currentBuild.result = "FAILURE"
+        throw e
+    } finally {
+        script.stage("Notifications") {
+            sendNotifications()
         }
     }
+}
 
-    def sendNotifications() {
+def sendNotifications() {
 
-        if ( script.env.BRANCH_NAME != 'master' ) {
-            echo "Not sending notifications on branch name ${script.env.BRANCH_NAME} != 'master'"
-            return
-        }
+    if ( script.env.BRANCH_NAME != 'master' ) {
+        echo "Not sending notifications on branch name ${script.env.BRANCH_NAME} != 'master'"
+        return
+    }
 
-        def recipients = jobConfig['emailRecipients']
+    def recipients = jobConfig['emailRecipients']
 
-        if ( !recipients ) {
-            script.echo "No recipients defined, not sending notifications."
-            return
-        }
+    if ( !recipients ) {
+        script.echo "No recipients defined, not sending notifications."
+        return
+    }
 
-        String current = currentBuild.result
+    String current = currentBuild.result
 
-        // values described at https://javadoc.jenkins-ci.org/hudson/model/Result.html
-        // Note that we don't handle consecutive failures to prevent mail spamming
+    // values described at https://javadoc.jenkins-ci.org/hudson/model/Result.html
+    // Note that we don't handle consecutive failures to prevent mail spamming
 
-        def change = null;
-        def recipientProviders = []
+    def change = null;
+    def recipientProviders = []
 
-        // 1. changes from success or unknown to non-success
-        if ( (previous == null || previous == "SUCCESS") && current != "SUCCESS" ) {
-            change = "BROKEN"
-            recipientProviders = [[$class: 'CulpritsRecipientProvider']]
-        }
+    // 1. changes from success or unknown to non-success
+    if ( (previous == null || previous == "SUCCESS") && current != "SUCCESS" ) {
+        change = "BROKEN"
+        recipientProviders = [[$class: 'CulpritsRecipientProvider']]
+    }
 
-        // 2. changes from non-success to success
-        if ( (previous != null && previous != "SUCCESS") && current == "SUCCESS" )
-            change = "FIXED"
+    // 2. changes from non-success to success
+    if ( (previous != null && previous != "SUCCESS") && current == "SUCCESS" )
+        change = "FIXED"
 
-        if ( change == null ) {
-            script.echo "No change in status, not sending notifications."
-            return
-        }
-        
-        script.echo "Status change is ${change}, notifications will be sent."
+    if ( change == null ) {
+        script.echo "No change in status, not sending notifications."
+        return
+    }
+    
+    script.echo "Status change is ${change}, notifications will be sent."
 
-        def subject = "[Jenkins] ${currentBuild.fullDisplayName} is ${change}"
-        def body = """Please see ${currentBuild.absoluteUrl} for details.
+    def subject = "[Jenkins] ${currentBuild.fullDisplayName} is ${change}"
+    def body = """Please see ${currentBuild.absoluteUrl} for details.
 
 No further emails will be sent until the status of the build is changed.
 """
 
-        if ( change == "BROKEN") {
-            body += "Build log follows below:\n\n"
-            body += '${BUILD_LOG}'
-        }
-
-        script.emailext subject: subject, body: body, replyTo: 'dev@sling.apache.org', recipientProviders: recipientProviders, to: jsonArrayToCsv(recipients)
+    if ( change == "BROKEN") {
+        body += "Build log follows below:\n\n"
+        body += '${BUILD_LOG}'
     }
-    
-    def ignoreExceptions(Closure closure) {
-        try {
-            closure.call()
-        } catch ( Exception | NoSuchMethodError e ) {
-            script.echo "[IGNORED]: " + e
-        }
+
+    script.emailext subject: subject, body: body, replyTo: 'dev@sling.apache.org', recipientProviders: recipientProviders, to: jsonArrayToCsv(recipients)
+}
+
+def ignoreExceptions(Closure closure) {
+    try {
+        closure.call()
+    } catch ( Exception | NoSuchMethodError e ) {
+        script.echo "[IGNORED]: " + e
     }
 }
