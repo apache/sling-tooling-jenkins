@@ -131,11 +131,11 @@ def sendNotifications(def jobConfig) {
         return
     }
 
-    String current = currentBuild.result
-
     // values described at https://javadoc.jenkins-ci.org/hudson/model/Result.html
     // Note that we don't handle consecutive failures to prevent mail spamming
 
+    String current = currentBuild.result
+    String previous = currentBuild.getPreviousBuild()?.result
     def change = null;
     def recipientProviders = []
 
