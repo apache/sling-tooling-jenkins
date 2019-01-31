@@ -38,10 +38,10 @@ def static jsonArrayToCsv(net.sf.json.JSONArray items) {
     return result.join(',')
 }
 
-def jobConfig = [:]
+
 
 def runWithErrorHandling(Closure build) {
-
+    def jobConfig = [:]
     try {
         timeout(time:15, unit: 'MINUTES', activity: true) {
 
@@ -99,12 +99,12 @@ def runWithErrorHandling(Closure build) {
         throw e
     } finally {
         stage("Notifications") {
-            sendNotifications()
+            sendNotifications(jobConfig)
         }
     }
 }
 
-def sendNotifications() {
+def sendNotifications(def jobConfig) {
 
     if ( env.BRANCH_NAME != 'master' ) {
         echo "Not sending notifications on branch name ${env.BRANCH_NAME} != 'master'"
