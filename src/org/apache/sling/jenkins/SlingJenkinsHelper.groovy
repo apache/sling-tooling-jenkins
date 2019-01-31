@@ -49,7 +49,7 @@ class SlingJenkinsHelper implements Serializable {
 
             script.stage('Init') {
                 jobConfig <<  DEFAULT_JOB_CONFIG
-                script.checkout scm
+                script.checkout script.scm
                 if ( fileExists('.sling-module.json') ) {
                     overrides = script.readJSON file: '.sling-module.json'
                     script.echo "Jenkins overrides: ${overrides.jenkins}"
