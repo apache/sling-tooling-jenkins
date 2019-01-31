@@ -41,32 +41,32 @@ def static jsonArrayToCsv(net.sf.json.JSONArray items) {
 def runWithErrorHandling(Closure build) {
 
     try {
-        script.timeout(time:15, unit: 'MINUTES', activity: true) {
+        timeout(time:15, unit: 'MINUTES', activity: true) {
 
-            script.stage('Init') {
+            stage('Init') {
                 jobConfig <<  DEFAULT_JOB_CONFIG
-                script.checkout script.scm
-                if ( script.fileExists('.sling-module.json') ) {
-                    overrides = script.readJSON file: '.sling-module.json'
-                    script.echo "Jenkins overrides: ${overrides.jenkins}"
+                checkout scm
+                if ( fileExists('.sling-module.json') ) {
+                    overrides = readJSON file: '.sling-module.json'
+                    echo "Jenkins overrides: ${overrides.jenkins}"
                     overrides.jenkins.each { key,value ->
                         jobConfig[key] = value;
                     }
                 }
-                script.echo "Final job config: ${jobConfig}"
+                echo "Final job config: ${jobConfig}"
             }
                 
-            script.stage('Configure Job') {
+            stage('Configure Job') {
                 def upstreamProjectsCsv = jobConfig.upstreamProjects ? 
                     jsonArrayToCsv(jobConfig.upstreamProjects) : ''
                 def jobTriggers = []
-                if ( script.env.BRANCH_NAME == 'master' )
-                    jobTriggers.add(script.cron(jobConfig.rebuildFrequency))
+                if ( env.BRANCH_NAME == 'master' )
+                    jobTriggers.add(cron(jobConfig.rebuildFrequency))
                 if ( upstreamProjectsCsv )
-                    jobTriggers.add(script.upstream(upstreamProjects: upstreamProjectsCsv, threshold: hudson.model.Result.SUCCESS))
+                    jobTriggers.add(upstream(upstreamProjects: upstreamProjectsCsv, threshold: hudson.model.Result.SUCCESS))
 
-                script.properties([
-                    script.pipelineTriggers(jobTriggers)
+                properties([
+                    pipelineTriggers(jobTriggers)
                 ])
             }
 
@@ -96,7 +96,7 @@ def runWithErrorHandling(Closure build) {
         currentBuild.result = "FAILURE"
         throw e
     } finally {
-        script.stage("Notifications") {
+        stage("Notifications") {
             sendNotifications()
         }
     }
@@ -104,15 +104,15 @@ def runWithErrorHandling(Closure build) {
 
 def sendNotifications() {
 
-    if ( script.env.BRANCH_NAME != 'master' ) {
-        echo "Not sending notifications on branch name ${script.env.BRANCH_NAME} != 'master'"
+    if ( env.BRANCH_NAME != 'master' ) {
+        echo "Not sending notifications on branch name ${env.BRANCH_NAME} != 'master'"
         return
     }
 
     def recipients = jobConfig['emailRecipients']
 
     if ( !recipients ) {
-        script.echo "No recipients defined, not sending notifications."
+        echo "No recipients defined, not sending notifications."
         return
     }
 
@@ -135,11 +135,11 @@ def sendNotifications() {
         change = "FIXED"
 
     if ( change == null ) {
-        script.echo "No change in status, not sending notifications."
+        echo "No change in status, not sending notifications."
         return
     }
     
-    script.echo "Status change is ${change}, notifications will be sent."
+    echo "Status change is ${change}, notifications will be sent."
 
     def subject = "[Jenkins] ${currentBuild.fullDisplayName} is ${change}"
     def body = """Please see ${currentBuild.absoluteUrl} for details.
@@ -152,13 +152,13 @@ No further emails will be sent until the status of the build is changed.
         body += '${BUILD_LOG}'
     }
 
-    script.emailext subject: subject, body: body, replyTo: 'dev@sling.apache.org', recipientProviders: recipientProviders, to: jsonArrayToCsv(recipients)
+    emailext subject: subject, body: body, replyTo: 'dev@sling.apache.org', recipientProviders: recipientProviders, to: jsonArrayToCsv(recipients)
 }
 
 def ignoreExceptions(Closure closure) {
     try {
         closure.call()
     } catch ( Exception | NoSuchMethodError e ) {
-        script.echo "[IGNORED]: " + e
+        echo "[IGNORED]: " + e
     }
 }
