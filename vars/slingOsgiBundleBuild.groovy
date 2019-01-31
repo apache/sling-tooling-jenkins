@@ -48,7 +48,7 @@ def defineStage(def globalConfig, def jobConfig, def jdkVersion, def isReference
     def invocation = {
         withMaven(maven: globalConfig.mvnVersion, jdk: jenkinsJdkLabel,
             options: [
-                artifactsPublisher(disabled: true),
+                artifactsPublisher(disabled: !isReferenceStage),
                 junitPublisher(disabled: !isReferenceStage),
                 openTasksPublisher(disabled: !isReferenceStage),
                 dependenciesFingerprintPublisher(disabled: !isReferenceStage)
