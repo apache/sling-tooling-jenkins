@@ -47,7 +47,7 @@ class SlingJenkinsHelper implements Serializable {
     def runWithErrorHandling(Closure build) {
         try {
 
-            script.echo "script bindings: ${script}"
+            script.echo "script bindings: ${script.variables}"
             script.echo "our bindings: ${this.bindings}"
 
             script.timeout(time:15, unit: 'MINUTES', activity: true) {
