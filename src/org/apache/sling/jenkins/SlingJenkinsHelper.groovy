@@ -38,6 +38,8 @@ def static jsonArrayToCsv(net.sf.json.JSONArray items) {
     return result.join(',')
 }
 
+def jobConfig = [:]
+
 def runWithErrorHandling(Closure build) {
 
     try {
