@@ -45,70 +45,66 @@ class SlingJenkinsHelper implements Serializable {
     def script;
 
     def runWithErrorHandling(Closure build) {
-        try {
+        script {
+            try {
+                script.timeout(time:15, unit: 'MINUTES', activity: true) {
 
-            ignoreExceptions({
-                script.echo "script bindings: ${script.getVariables()}"
-                script.echo "our bindings: ${this.bindings}"
-            })
-
-            script.timeout(time:15, unit: 'MINUTES', activity: true) {
-
-                script.stage('Init') {
-                    jobConfig <<  DEFAULT_JOB_CONFIG
-                    script.checkout script.scm
-                    if ( script.fileExists('.sling-module.json') ) {
-                        overrides = script.readJSON file: '.sling-module.json'
-                        script.echo "Jenkins overrides: ${overrides.jenkins}"
-                        overrides.jenkins.each { key,value ->
-                            jobConfig[key] = value;
+                    script.stage('Init') {
+                        jobConfig <<  DEFAULT_JOB_CONFIG
+                        script.checkout script.scm
+                        if ( script.fileExists('.sling-module.json') ) {
+                            overrides = script.readJSON file: '.sling-module.json'
+                            script.echo "Jenkins overrides: ${overrides.jenkins}"
+                            overrides.jenkins.each { key,value ->
+                                jobConfig[key] = value;
+                            }
                         }
+                        script.echo "Final job config: ${jobConfig}"
                     }
-                    script.echo "Final job config: ${jobConfig}"
-                }
-                    
-                script.stage('Configure Job') {
-                    def upstreamProjectsCsv = jobConfig.upstreamProjects ? 
-                        jsonArrayToCsv(jobConfig.upstreamProjects) : ''
-                    def jobTriggers = []
-                    if ( script.env.BRANCH_NAME == 'master' )
-                        jobTriggers.add(script.cron(jobConfig.rebuildFrequency))
-                    if ( upstreamProjectsCsv )
-                        jobTriggers.add(script.upstream(upstreamProjects: upstreamProjectsCsv, threshold: hudson.model.Result.SUCCESS))
+                        
+                    script.stage('Configure Job') {
+                        def upstreamProjectsCsv = jobConfig.upstreamProjects ? 
+                            jsonArrayToCsv(jobConfig.upstreamProjects) : ''
+                        def jobTriggers = []
+                        if ( script.env.BRANCH_NAME == 'master' )
+                            jobTriggers.add(script.cron(jobConfig.rebuildFrequency))
+                        if ( upstreamProjectsCsv )
+                            jobTriggers.add(script.upstream(upstreamProjects: upstreamProjectsCsv, threshold: hudson.model.Result.SUCCESS))
 
-                    script.properties([
-                        script.pipelineTriggers(jobTriggers)
-                    ])
-                }
+                        script.properties([
+                            script.pipelineTriggers(jobTriggers)
+                        ])
+                    }
 
-                build.call(jobConfig)
-            }
-        // exception handling copied from https://github.com/apache/maven-jenkins-lib/blob/d6c76aaea9df19ad88439eba4f9d1ad6c9e272bd/vars/asfMavenTlpPlgnBuild.groovy
-        } catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e) {
-            // this ambiguous condition means a user probably aborted
-            if (e.causes.size() == 0) {
+                    build.call(jobConfig)
+                }
+            // exception handling copied from https://github.com/apache/maven-jenkins-lib/blob/d6c76aaea9df19ad88439eba4f9d1ad6c9e272bd/vars/asfMavenTlpPlgnBuild.groovy
+            } catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e) {
+                // this ambiguous condition means a user probably aborted
+                if (e.causes.size() == 0) {
+                    currentBuild.result = "ABORTED"
+                } else {
+                    currentBuild.result = "FAILURE"
+                }
+                throw e
+            } catch (hudson.AbortException e) {
+                // this ambiguous condition means during a shell step, user probably aborted
+                if (e.getMessage().contains('script returned exit code 143')) {
+                    currentBuild.result = "ABORTED"
+                } else {
+                    currentBuild.result = "FAILURE"
+                }
+                throw e
+            } catch (InterruptedException e) {
                 currentBuild.result = "ABORTED"
-            } else {
+                throw e
+            } catch (Throwable e) {
                 currentBuild.result = "FAILURE"
-            }
-            throw e
-        } catch (hudson.AbortException e) {
-            // this ambiguous condition means during a shell step, user probably aborted
-            if (e.getMessage().contains('script returned exit code 143')) {
-                currentBuild.result = "ABORTED"
-            } else {
-                currentBuild.result = "FAILURE"
-            }
-            throw e
-        } catch (InterruptedException e) {
-            currentBuild.result = "ABORTED"
-            throw e
-        } catch (Throwable e) {
-            currentBuild.result = "FAILURE"
-            throw e
-        } finally {
-            script.stage("Notifications") {
-                sendNotifications()
+                throw e
+            } finally {
+                script.stage("Notifications") {
+                    sendNotifications()
+                }
             }
         }
     }
@@ -169,7 +165,7 @@ No further emails will be sent until the status of the build is changed.
     def ignoreExceptions(Closure closure) {
         try {
             closure.call()
-        } catch ( Exception e ) {
+        } catch ( Exception | NoSuchMethodError e ) {
             script.echo "[IGNORED]: " + e
         }
     }
