@@ -18,6 +18,21 @@
  */
 package org.apache.sling.jenkins;
 
+/*
+ * Helper which provides reusable building blocks for Sling Pipeline jobs
+ *
+ * <p>This class is implicity ( i.e. no class declaration ) in order to inherit all the available 
+ * bindings of the Jenkins scripted pipeline.</p>
+ * 
+ * <p>The <tt>runWithErrorHandling</tt> method accepts a closure which should be a scripted pipeline
+ * execution block, generating the <em>Init</em> and <em>Configure Job</em> steps automatically. The
+ * closure will receieve a single argument of type <tt>Map</tt>, which holds the job configuration.
+ * The job configuration is build from the Sling module descriptor, if present.</p>
+ * 
+ * @see <a href="https://jenkins.io/doc/book/pipeline/shared-libraries/">Pipeline shared libraries</a>
+ * @see <a href="https://cwiki.apache.org/confluence/display/SLING/Sling+module+descriptor">Sling module descriptor</a>
+ */
+
 // workaround for "Scripts not permitted to use method net.sf.json.JSONArray join java.lang.String"
 def static jsonArrayToCsv(net.sf.json.JSONArray items) {
     def result = []
@@ -29,6 +44,7 @@ def static jsonArrayToCsv(net.sf.json.JSONArray items) {
 
 
 def runWithErrorHandling(Closure build) {
+
     def jobConfig = [
         jdks: [8],
         upstreamProjects: [],
@@ -152,12 +168,4 @@ No further emails will be sent until the status of the build is changed.
     }
 
     emailext subject: subject, body: body, replyTo: 'dev@sling.apache.org', recipientProviders: recipientProviders, to: jsonArrayToCsv(recipients)
-}
-
-def ignoreExceptions(Closure closure) {
-    try {
-        closure.call()
-    } catch ( Exception | NoSuchMethodError e ) {
-        echo "[IGNORED]: " + e
-    }
 }
