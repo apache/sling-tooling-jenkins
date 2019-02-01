@@ -51,7 +51,7 @@ def call(Map params = [:]) {
                                 def mvnCmd = "mvn -U clean verify sonar:sonar ${additionalMavenParams}"
                                 if ( hideCommandLine )  // don't print out GitHub auth information
                                     mvnCmd = "#!/bin/sh -e\n" + mvnCmd
-                                sh: mvnCmd
+                                sh mvnCmd
                             }
                         }
                     }
