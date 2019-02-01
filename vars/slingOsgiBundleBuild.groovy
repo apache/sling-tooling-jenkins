@@ -34,8 +34,8 @@ def call(Map params = [:]) {
                     if ( env.BRANCH_NAME.startsWith("PR-") ) {
                         def matcher = env.CHANGE_URL =~ /https:\/\/github\.com\/([\w-]+)\/([\w-]+)\/pull\/\d+/
                         if ( matcher.matches() ) {
-                            echo "Detected repo owner ${matches.group(1)} and repo name ${matches.group(2)}"
-                            additionalMavenParams="${additionalMavenParams} -Dsonar.pullrequest.branch=${env.CHANGE_BRANCH} -Dsonar.pullrequest.key=${env.CHANGE_ID} -Dsonar.pullrequest.base=${CHANGE_TARGET} -Dsonar.pullrequest.provider=github -Dsonar.verbose=true -Dsonar.pullrequest.github.repository=${matches.group(1)}/${matches.group(2)}"
+                            echo "Detected repo owner ${matcher.group(1)} and repo name ${matcher.group(2)}"
+                            additionalMavenParams="${additionalMavenParams} -Dsonar.pullrequest.branch=${env.CHANGE_BRANCH} -Dsonar.pullrequest.key=${env.CHANGE_ID} -Dsonar.pullrequest.base=${CHANGE_TARGET} -Dsonar.pullrequest.provider=github -Dsonar.verbose=true -Dsonar.pullrequest.github.repository=${matcher.group(1)}/${matcher.group(2)}"
                         }
                     }
                     stage('SonarQube') {
