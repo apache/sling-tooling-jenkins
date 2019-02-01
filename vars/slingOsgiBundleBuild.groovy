@@ -39,7 +39,7 @@ def call(Map params = [:]) {
                         hideCommandLine = true
                         def repo = getGitHubRepoSlug()
                         withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: globalConfig.githubCredentialsId, usernameVariable: 'USERNAME', passwordVariable: 'TOKEN']]) {
-                            additionalMavenParams="${additionalMavenParams} -Dsonar.analysis.mode=preview -Dsonar.github.repository=${repo} -Dsonar.github.pullRequest=${env.CHANGE_ID} -Dsonar.github.login=${USERNAME} -Dsonar.verbose=true -Dsonar.issuesReport.console.enable=true"
+                            additionalMavenParams="${additionalMavenParams} -Dsonar.analysis.mode=preview -Dsonar.github.pullRequest=${env.CHANGE_ID} -Dsonar.github.repository=${repo} -Dsonar.github.oauth=${TOKEN} -Dsonar.verbose=true"
                         }
                     }
                     stage('SonarQube') {
