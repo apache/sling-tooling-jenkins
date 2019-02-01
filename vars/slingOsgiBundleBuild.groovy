@@ -34,7 +34,9 @@ def call(Map params = [:]) {
                     def additionalMavenParams = additionalMavenParams(jobConfig)
 
                     // debugging for Sonar
+                    def hideCommandLine = false
                     if ( env.BRANCH_NAME.startsWith("PR-") ) {
+                        hideCommandLine = true
                         def repo = getGitHubRepoSlug()
                         withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: globalConfig.githubCredentialsId, usernameVariable: 'USERNAME', passwordVariable: 'TOKEN']]) {
                             additionalMavenParams="${additionalMavenParams} -Dsonar.analysis.mode=preview -Dsonar.github.repository=${repo} -Dsonar.github.pullRequest=${env.CHANGE_ID} -Dsonar.github.login=${USERNAME} -Dsonar.verbose=true -Dsonar.issuesReport.console.enable=true"
@@ -45,7 +47,11 @@ def call(Map params = [:]) {
                             withMaven(maven: globalConfig.mvnVersion, 
                                 jdk: jenkinsJdkLabel(jobConfig.jdks[0], globalConfig),
                                 publisherStrategy: 'EXPLICIT') {
-                                sh "mvn -U clean verify sonar:sonar ${additionalMavenParams}"
+                                
+                                def mvnCmd = "mvn -U clean verify sonar:sonar ${additionalMavenParams}"
+                                if ( hideCommandLine )  // don't print out GitHub auth information
+                                    mvnCmd = "#!/bin/sh -e\n" + mvnCmd
+                                sh: mvnCmd
                             }
                         }
                     }
