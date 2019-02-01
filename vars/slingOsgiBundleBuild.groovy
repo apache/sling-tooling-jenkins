@@ -53,7 +53,7 @@ def call(Map params = [:]) {
                                     mvnCmd = "#!/bin/sh -e\n" + mvnCmd
                                 sh mvnCmd
                                 if ( isPrBuild ) {
-                                    archiveArtifacts artifacts: '**/target/sonar/issues-report/*'
+                                    archiveArtifacts artifacts: '**/target/sonar/issues-report/**'
                                 }
 
                             }
