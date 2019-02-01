@@ -29,8 +29,9 @@ def call(Map params = [:]) {
                 // also, we don't activate any Maven publisher since we don't want this part of the
                 // build tracked, but using withMaven(...) allows us to easily reuse the same
                 // Maven and JDK versions
-                // if ( env.BRANCH_NAME == "master" ) {
+                 if ( env.BRANCH_NAME == "master" ) {
                     def additionalMavenParams = additionalMavenParams(jobConfig)
+                    /* disable PR analysis since there seems to be no effect
                     if ( env.BRANCH_NAME.startsWith("PR-") ) {
                         def matcher = env.CHANGE_URL =~ /https:\/\/github\.com\/([\w-]+)\/([\w-]+)\/pull\/\d+/
                         if ( matcher.matches() ) {
@@ -38,6 +39,7 @@ def call(Map params = [:]) {
                             additionalMavenParams="${additionalMavenParams} -Dsonar.pullrequest.branch=${env.CHANGE_BRANCH} -Dsonar.pullrequest.key=${env.CHANGE_ID} -Dsonar.pullrequest.base=${CHANGE_TARGET} -Dsonar.pullrequest.provider=github -Dsonar.verbose=true -Dsonar.pullrequest.github.repository=${matcher.group(1)}/${matcher.group(2)}"
                         }
                     }
+                    */
                     stage('SonarQube') {
                         withSonarQubeEnv('ASF Sonar Analysis') {
                             withMaven(maven: globalConfig.mvnVersion, 
@@ -47,7 +49,7 @@ def call(Map params = [:]) {
                             }
                         }
                     }
-                // }
+                }
 
             } else {
                 echo "Job is disabled, not building"
