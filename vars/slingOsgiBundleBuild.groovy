@@ -95,7 +95,7 @@ def getGitHubRepoSlug() {
 
 @NonCPS
 def addPullRequestComment(def message) {
-    pullRequest.comment(message)
+    def comment = pullRequest.comment(message)
     return comment.id // prevent escape of a non-serializable object
 }
 
