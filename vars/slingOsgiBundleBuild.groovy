@@ -32,8 +32,9 @@ def call(Map params = [:]) {
                 // if ( env.BRANCH_NAME == "master" ) {
                     def additionalMavenParams = additionalMavenParams(jobConfig)
                     if ( env.BRANCH_NAME.startsWith("PR-") ) {
-                        sh 'printenv'
-                        additionalMavenParams="${additionalMavenParams} -Dsonar.pullrequest.branch=${env.CHANGE_BRANCH} -Dsonar.pullrequest.key=${env.CHANGE_ID} -Dsonar.pullrequest.base=${CHANGE_TARGET} -Dsonar.pullrequest.provider=github -Dsonar.verbose=true"
+                        def matches = env.CHANGE_URL =~ /https:\/\/github\.com\/([\w-]+)\/([\w-]+)\/pull\/\d+/
+                        echo "Detected repo owner ${matches.group(1)} and repo name ${matches.group(2)}"
+                        additionalMavenParams="${additionalMavenParams} -Dsonar.pullrequest.branch=${env.CHANGE_BRANCH} -Dsonar.pullrequest.key=${env.CHANGE_ID} -Dsonar.pullrequest.base=${CHANGE_TARGET} -Dsonar.pullrequest.provider=github -Dsonar.verbose=true -Dsonar.pullrequest.github.repository=${matches.group(1)}/${matches.group(2)}"
                     }
                     stage('SonarQube') {
                         withSonarQubeEnv('ASF Sonar Analysis') {
