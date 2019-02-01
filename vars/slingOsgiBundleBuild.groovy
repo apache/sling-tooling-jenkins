@@ -34,7 +34,7 @@ def call(Map params = [:]) {
                         withSonarQubeEnv('ASF Sonar Analysis') {
                             withMaven(maven: globalConfig.mvnVersion, 
                                 jdk: jenkinsJdkLabel(jobConfig.jdks[0], globalConfig),
-                                publisherStrategy='EXPLICIT') {
+                                publisherStrategy: 'EXPLICIT') {
                                 sh 'mvn -U clean verify sonar:sonar ${additionalMavenParams}'
                             }
                         }
