@@ -25,10 +25,18 @@ def call(Map params = [:]) {
                     currentBuild.result = "SUCCESS"
                 }
 
+                // this might fail if there are no jdks defined, but that's always an error
+                // also, we don't activate any Maven publisher since we don't want this part of the
+                // build tracked, but using withMaven(...) allows us to easily reuse the same
+                // Maven and JDK versions
                 if ( env.BRANCH_NAME == "master" ) {
                     stage('SonarQube') {
                         withSonarQubeEnv('ASF Sonar Analysis') {
-                            sh 'mvn -U clean verify sonar:sonar ${additionalMavenParams}'
+                            withMaven(maven: globalConfig.mvnVersion, 
+                                jdk: jenkinsJdkLabel(jobConfig.jdks[0], globalConfig),
+                                publisherStrategy='EXPLICIT') {
+                                sh 'mvn -U clean verify sonar:sonar ${additionalMavenParams}'
+                            }
                         }
                     }
                 }
@@ -40,15 +48,20 @@ def call(Map params = [:]) {
     }
 }
 
+def jenkinsJdkLabel(int jdkVersion, def globalConfig) {
+    def label = globalConfig.availableJDKs[jdkVersion]
+    if ( !label )
+        throw new RuntimeException("Unknown JDK version ${jdkVersion}")    
+    return label
+}
+
 def defineStage(def globalConfig, def jobConfig, def jdkVersion, def isReferenceStage) {
 
     def goal = jobConfig.mavenGoal ? jobConfig.mavenGoal : ( isReferenceStage ? "deploy" : "verify" )
     def branchConfig = jobConfig?.branches?."$env.BRANCH_NAME" ?: [:]
     def additionalMavenParams = branchConfig.additionalMavenParams ?
         branchConfig.additionalMavenParams : jobConfig.additionalMavenParams
-    def jenkinsJdkLabel = globalConfig.availableJDKs[jdkVersion]
-    if ( !jenkinsJdkLabel )
-        throw new RuntimeException("Unknown JDK version ${jdkVersion}")
+    def jenkinsJdkLabel = jenkinsJdkLabel(jdkVersion, globalConfig)
 
     // do not deploy artifacts built from PRs or feature branches
     if ( goal == "deploy" && env.BRANCH_NAME != "master" )
