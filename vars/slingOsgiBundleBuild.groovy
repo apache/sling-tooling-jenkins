@@ -54,7 +54,7 @@ def call(Map params = [:]) {
                                 sh mvnCmd
                                 if ( isPrBuild ) {
                                     archiveArtifacts artifacts: '**/target/sonar/issues-report/**'
-                                    addPullRequestComment("A SonarQube report for the changes added _only by this pull request_ was generated. Please review it at ${env.BUILD_URL}artifact/target/sonar/issues-report/issues-report-light.html")
+                                    //addPullRequestComment("A SonarQube report for the changes added _only by this pull request_ was generated. Please review it at ${env.BUILD_URL}artifact/target/sonar/issues-report/issues-report-light.html")
                                 }
 
                             }
