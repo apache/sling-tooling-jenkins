@@ -35,11 +35,11 @@ def call(Map params = [:]) {
 
                     // debugging for Sonar
                     def hideCommandLine = false
-                    if ( env.BRANCH_NAME.startsWith("PR-") ) {
-                        hideCommandLine = true
+                    def isPrBuild = env.BRANCH_NAME.startsWith("PR-")
+                    if ( isPrBuild ) {
                         def repo = getGitHubRepoSlug()
                         withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: globalConfig.githubCredentialsId, usernameVariable: 'USERNAME', passwordVariable: 'TOKEN']]) {
-                            additionalMavenParams="${additionalMavenParams} -Dsonar.analysis.mode=preview -Dsonar.github.pullRequest=${env.CHANGE_ID} -Dsonar.github.repository=${repo} -Dsonar.github.login=${USERNAME} -Dsonar.github.oauth=${TOKEN} -Dsonar.verbose=true"
+                            additionalMavenParams="${additionalMavenParams} -Dsonar.analysis.mode=preview -Dsonar.github.pullRequest=${env.CHANGE_ID} -Dsonar.github.repository=${repo} -Dsonar.github.login=${USERNAME} -Dsonar.github.oauth=${TOKEN} -Dsonar.verbose=true -Dsonar.issuesReport.html.enable=true"
                         }
                     }
                     stage('SonarQube') {
@@ -49,9 +49,13 @@ def call(Map params = [:]) {
                                 publisherStrategy: 'EXPLICIT') {
                                 
                                 def mvnCmd = "mvn -U clean verify sonar:sonar ${additionalMavenParams}"
-                                if ( hideCommandLine )  // don't print out GitHub auth information
+                                if ( isPrBuild )  // don't print out GitHub auth information
                                     mvnCmd = "#!/bin/sh -e\n" + mvnCmd
                                 sh mvnCmd
+                                if ( isPrBuild ) {
+                                    archiveArtifacts artifacts: '**/target/sonar/issues-report/*'
+                                }
+
                             }
                         }
                     }
