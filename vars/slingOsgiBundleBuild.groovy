@@ -54,7 +54,7 @@ def call(Map params = [:]) {
                                 sh mvnCmd
                                 if ( isPrBuild ) {
                                     archiveArtifacts artifacts: '**/target/sonar/issues-report/**'
-                                    //addPullRequestComment("A SonarQube report for the changes added _only by this pull request_ was generated. Please review it at ${env.BUILD_URL}artifact/target/sonar/issues-report/issues-report-light.html")
+                                    addPullRequestComment("A SonarQube report for the changes added _only by this pull request_ was generated. Please review it at ${env.BUILD_URL}artifact/target/sonar/issues-report/issues-report-light.html")
                                 }
 
                             }
@@ -96,6 +96,7 @@ def getGitHubRepoSlug() {
 @NonCPS
 def addPullRequestComment(def message) {
     pullRequest.comment(message)
+    return comment.id // prevent escape of a non-serializable object
 }
 
 def defineStage(def globalConfig, def jobConfig, def jdkVersion, def isReferenceStage) {
