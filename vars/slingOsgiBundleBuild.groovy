@@ -37,9 +37,10 @@ def call(Map params = [:]) {
                     if ( env.BRANCH_NAME.startsWith("PR-") ) {
                         def matcher = env.CHANGE_URL =~ /https:\/\/github\.com\/([\w-]+)\/([\w-]+)\/pull\/\d+/
                         if ( matcher.matches() ) {
-                            echo "Detected repo owner ${matcher.group(1)} and repo name ${matcher.group(2)}"
+                            def repoOwner = matcher.group(1)
+                            def repoName = matcher.group(2)
                             withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: globalConfig.githubCredentialsId, usernameVariable: 'USERNAME', passwordVariable: 'TOKEN']]) {
-                                additionalMavenParams="${additionalMavenParams} -Dsonar.analysis.mode=preview -Dsonar.github.repository=${matcher.group(1)}/${matcher.group(2)} -Dsonar.github.pullRequest=${env.CHANGE_ID} -Dsonar.github.login=${USERNAME} -Dsonar.verbose=true "
+                                additionalMavenParams="${additionalMavenParams} -Dsonar.analysis.mode=preview -Dsonar.github.repository=${repoOwner}/${repoName} -Dsonar.github.pullRequest=${env.CHANGE_ID} -Dsonar.github.login=${USERNAME} -Dsonar.verbose=true "
                             }
                         }
                     }
