@@ -5,7 +5,8 @@ def call(Map params = [:]) {
     def globalConfig = [
         availableJDKs : [ 8: 'JDK 1.8 (latest)', 9: 'JDK 1.9 (latest)', 10: 'JDK 10 (latest)', 11: 'JDK 11 (latest)' ],
         mvnVersion : 'Maven (latest)',
-        mainNodeLabel : 'ubuntu'
+        mainNodeLabel : 'ubuntu',
+        githubCredentialsId: 'rombert'
     ]
 
     node(globalConfig.mainNodeLabel) {
@@ -29,17 +30,19 @@ def call(Map params = [:]) {
                 // also, we don't activate any Maven publisher since we don't want this part of the
                 // build tracked, but using withMaven(...) allows us to easily reuse the same
                 // Maven and JDK versions
-                 if ( env.BRANCH_NAME == "master" ) {
+//                 if ( env.BRANCH_NAME == "master" ) {
                     def additionalMavenParams = additionalMavenParams(jobConfig)
-                    /* disable PR analysis since there seems to be no effect
+
+                    // debugging for Sonar
                     if ( env.BRANCH_NAME.startsWith("PR-") ) {
                         def matcher = env.CHANGE_URL =~ /https:\/\/github\.com\/([\w-]+)\/([\w-]+)\/pull\/\d+/
                         if ( matcher.matches() ) {
                             echo "Detected repo owner ${matcher.group(1)} and repo name ${matcher.group(2)}"
-                            additionalMavenParams="${additionalMavenParams} -Dsonar.pullrequest.branch=${env.CHANGE_BRANCH} -Dsonar.pullrequest.key=${env.CHANGE_ID} -Dsonar.pullrequest.base=${CHANGE_TARGET} -Dsonar.pullrequest.provider=github -Dsonar.verbose=true -Dsonar.pullrequest.github.repository=${matcher.group(1)}/${matcher.group(2)}"
+                            withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: globalConfig.githubCredentialsId, usernameVariable: 'USERNAME', passwordVariable: 'TOKEN']]) {
+                                additionalMavenParams="${additionalMavenParams} -Dsonar.analysis.mode=preview -Dsonar.github.repository=${matcher.group(1)}/${matcher.group(2)} -Dsonar.github.pullRequest=${env.CHANGE_ID} -Dsonar.github.login=${USERNAME} -Dsonar.verbose=true "
+                            }
                         }
                     }
-                    */
                     stage('SonarQube') {
                         withSonarQubeEnv('ASF Sonar Analysis') {
                             withMaven(maven: globalConfig.mvnVersion, 
@@ -49,8 +52,7 @@ def call(Map params = [:]) {
                             }
                         }
                     }
-                }
-
+  //              }
             } else {
                 echo "Job is disabled, not building"
             }
