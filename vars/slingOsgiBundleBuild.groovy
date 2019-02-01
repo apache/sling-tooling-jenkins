@@ -24,6 +24,15 @@ def call(Map params = [:]) {
                     isReferenceStage = false
                     currentBuild.result = "SUCCESS"
                 }
+
+                if ( env.BRANCH_NAME == "master" ) {
+                    stage('SonarQube') {
+                        withSonarQubeEnv('ASF Sonar Analysis') {
+                            sh 'mvn -U clean verify sonar:sonar ${additionalMavenParams}'
+                        }
+                    }
+                }
+
             } else {
                 echo "Job is disabled, not building"
             }
