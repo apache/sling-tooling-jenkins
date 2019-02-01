@@ -29,7 +29,7 @@ def call(Map params = [:]) {
                 // also, we don't activate any Maven publisher since we don't want this part of the
                 // build tracked, but using withMaven(...) allows us to easily reuse the same
                 // Maven and JDK versions
-                if ( env.BRANCH_NAME == "master" ) {
+                // if ( env.BRANCH_NAME == "master" ) {
                     def additionalMavenParams = additionalMavenParams(jobConfig)
                     stage('SonarQube') {
                         withSonarQubeEnv('ASF Sonar Analysis') {
@@ -40,7 +40,7 @@ def call(Map params = [:]) {
                             }
                         }
                     }
-                }
+                // }
 
             } else {
                 echo "Job is disabled, not building"
