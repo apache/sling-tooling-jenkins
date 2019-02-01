@@ -6,7 +6,7 @@ def call(Map params = [:]) {
         availableJDKs : [ 8: 'JDK 1.8 (latest)', 9: 'JDK 1.9 (latest)', 10: 'JDK 10 (latest)', 11: 'JDK 11 (latest)' ],
         mvnVersion : 'Maven (latest)',
         mainNodeLabel : 'ubuntu',
-        githubCredentialsId: 'rombert'
+        githubCredentialsId: 'sling-github-token'
     ]
 
     node(globalConfig.mainNodeLabel) {
