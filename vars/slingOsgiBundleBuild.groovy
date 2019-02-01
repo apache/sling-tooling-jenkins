@@ -30,12 +30,13 @@ def call(Map params = [:]) {
                 // build tracked, but using withMaven(...) allows us to easily reuse the same
                 // Maven and JDK versions
                 if ( env.BRANCH_NAME == "master" ) {
+                    def additionalMavenParams = additionalMavenParams(jobConfig)
                     stage('SonarQube') {
                         withSonarQubeEnv('ASF Sonar Analysis') {
                             withMaven(maven: globalConfig.mvnVersion, 
                                 jdk: jenkinsJdkLabel(jobConfig.jdks[0], globalConfig),
                                 publisherStrategy: 'EXPLICIT') {
-                                sh 'mvn -U clean verify sonar:sonar ${jobConfig.additionalMavenParams}'
+                                sh 'mvn -U clean verify sonar:sonar ${additionalMavenParams}'
                             }
                         }
                     }
@@ -55,12 +56,16 @@ def jenkinsJdkLabel(int jdkVersion, def globalConfig) {
     return label
 }
 
+def additionalMavenParams(def jobConfig) {
+    def branchConfig = jobConfig?.branches?."$env.BRANCH_NAME" ?: [:]
+    return branchConfig.additionalMavenParams ?
+        branchConfig.additionalMavenParams : jobConfig.additionalMavenParams
+}
+
 def defineStage(def globalConfig, def jobConfig, def jdkVersion, def isReferenceStage) {
 
     def goal = jobConfig.mavenGoal ? jobConfig.mavenGoal : ( isReferenceStage ? "deploy" : "verify" )
-    def branchConfig = jobConfig?.branches?."$env.BRANCH_NAME" ?: [:]
-    def additionalMavenParams = branchConfig.additionalMavenParams ?
-        branchConfig.additionalMavenParams : jobConfig.additionalMavenParams
+    def additionalMavenParams = additionalMavenParams(jobConfig)
     def jenkinsJdkLabel = jenkinsJdkLabel(jdkVersion, globalConfig)
 
     // do not deploy artifacts built from PRs or feature branches
@@ -82,7 +87,8 @@ def defineStage(def globalConfig, def jobConfig, def jdkVersion, def isReference
             archiveArtifacts(artifacts: SlingJenkinsHelper.jsonArrayToCsv(jobConfig.archivePatterns), allowEmptyArchive: true)
         }
     }
-
+    
+    def branchConfig = jobConfig?.branches?."$env.BRANCH_NAME" ?: [:]
     if ( branchConfig.nodeLabel && branchConfig.nodeLabel != globalConfig.mainNodeLabel )
         invocation = wrapInNode(invocation,branchConfig.nodeLabel)
 
