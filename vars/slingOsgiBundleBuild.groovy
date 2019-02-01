@@ -32,7 +32,8 @@ def call(Map params = [:]) {
                 // if ( env.BRANCH_NAME == "master" ) {
                     def additionalMavenParams = additionalMavenParams(jobConfig)
                     if ( env.BRANCH_NAME.startsWith("PR-") ) {
-                        additionalMavenParams="${additionalMavenParams} -Dsonar.pullrequest.branch=${env.BRANCH_NAME}. -Dsonar.pullrequest.key=${env.CHANGE_ID} -Dsonar.pullrequest.base=${CHANGE_TARGET} -Dsonar.pullrequest.provider=github"
+                        sh 'printenv'
+                        additionalMavenParams="${additionalMavenParams} -Dsonar.pullrequest.branch=${env.BRANCH_NAME} -Dsonar.pullrequest.key=${env.CHANGE_ID} -Dsonar.pullrequest.base=${CHANGE_TARGET} -Dsonar.pullrequest.provider=github"
                     }
                     stage('SonarQube') {
                         withSonarQubeEnv('ASF Sonar Analysis') {
