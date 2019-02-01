@@ -35,13 +35,9 @@ def call(Map params = [:]) {
 
                     // debugging for Sonar
                     if ( env.BRANCH_NAME.startsWith("PR-") ) {
-                        def matcher = env.CHANGE_URL =~ /https:\/\/github\.com\/([\w-]+)\/([\w-]+)\/pull\/\d+/
-                        if ( matcher.matches() ) {
-                            def repoOwner = matcher.group(1)
-                            def repoName = matcher.group(2)
-                            withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: globalConfig.githubCredentialsId, usernameVariable: 'USERNAME', passwordVariable: 'TOKEN']]) {
-                                additionalMavenParams="${additionalMavenParams} -Dsonar.analysis.mode=preview -Dsonar.github.repository=${repoOwner}/${repoName} -Dsonar.github.pullRequest=${env.CHANGE_ID} -Dsonar.github.login=${USERNAME} -Dsonar.verbose=true "
-                            }
+                        def repo = getGitHubRepoSlug()
+                        withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: globalConfig.githubCredentialsId, usernameVariable: 'USERNAME', passwordVariable: 'TOKEN']]) {
+                            additionalMavenParams="${additionalMavenParams} -Dsonar.analysis.mode=preview -Dsonar.github.repository=${repo} -Dsonar.github.pullRequest=${env.CHANGE_ID} -Dsonar.github.login=${USERNAME} -Dsonar.verbose=true "
                         }
                     }
                     stage('SonarQube') {
@@ -72,6 +68,18 @@ def additionalMavenParams(def jobConfig) {
     def branchConfig = jobConfig?.branches?."$env.BRANCH_NAME" ?: [:]
     return branchConfig.additionalMavenParams ?
         branchConfig.additionalMavenParams : jobConfig.additionalMavenParams
+}
+
+@NonCPS
+def getGitHubRepoSlug() {
+    if ( !env.CHANGE_URL )
+        return null
+    
+    def matcher = env.CHANGE_URL =~ /https:\/\/github\.com\/([\w-]+)\/([\w-]+)\/pull\/\d+/
+    if ( !matcher )
+        return null
+
+    return "${matcher.group(1)}/${matcher.group(2)}"
 }
 
 def defineStage(def globalConfig, def jobConfig, def jdkVersion, def isReferenceStage) {
