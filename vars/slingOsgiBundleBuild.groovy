@@ -35,7 +35,7 @@ def call(Map params = [:]) {
                             withMaven(maven: globalConfig.mvnVersion, 
                                 jdk: jenkinsJdkLabel(jobConfig.jdks[0], globalConfig),
                                 publisherStrategy: 'EXPLICIT') {
-                                sh 'mvn -U clean verify sonar:sonar ${additionalMavenParams}'
+                                sh 'mvn -U clean verify sonar:sonar ${jobConfig.additionalMavenParams}'
                             }
                         }
                     }
