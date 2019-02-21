@@ -107,8 +107,15 @@ def defineStage(def globalConfig, def jobConfig, def jdkVersion, def isReference
 
     // do not deploy artifacts built from PRs or feature branches
     // also do not deploy non-SNAPSHOT versions
-    if ( goal == "deploy" && ( env.BRANCH_NAME != "master" || !readMavenPom().version.endsWith('-SNAPSHOT') ) )
-        goal = "verify"
+    if ( goal == "deploy" ) {
+        def notMaster =  env.BRANCH_NAME != "master"
+        def mavenVersion = readMavenPom().version
+        def isSnapshot = mavenVersion.endsWith('-SNAPSHOT')
+        if ( notMaster || !isSnapshot ) {
+            goal = "verify"
+            echo "Maven goal set to ${goal} since branch is not master ( ${env.BRANCH_NAME} ) or version is not snapshot ( ${mavenVersion} )"
+        }            
+    }
 
     def invocation = {
         withMaven(maven: globalConfig.mvnVersion, jdk: jenkinsJdkLabel,
