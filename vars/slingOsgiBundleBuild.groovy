@@ -106,7 +106,8 @@ def defineStage(def globalConfig, def jobConfig, def jdkVersion, def isReference
     def jenkinsJdkLabel = jenkinsJdkLabel(jdkVersion, globalConfig)
 
     // do not deploy artifacts built from PRs or feature branches
-    if ( goal == "deploy" && env.BRANCH_NAME != "master" )
+    // also do not deploy non-SNAPSHOT versions
+    if ( goal == "deploy" && ( env.BRANCH_NAME != "master" || !readMavenPom().version.endsWith('-SNAPSHOT') ) )
         goal = "verify"
 
     def invocation = {
