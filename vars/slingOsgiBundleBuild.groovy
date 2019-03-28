@@ -60,6 +60,12 @@ def call(Map params = [:]) {
                             }
                         }
                     }
+
+                    if ( jobConfig.sonarCloud ) {
+                        stage('SonarCloud') {
+                            echo "stub"
+                        }
+                    }
   //              }
             } else {
                 echo "Job is disabled, not building"
