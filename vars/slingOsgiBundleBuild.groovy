@@ -73,7 +73,7 @@ def call(Map params = [:]) {
                                 sonarcloudParams="${sonarcloudParams} -Dsonar.branch.name=${BRANCH_NAME}"
                             }
                             // Alls params are set, let's execute using #withCrendentials to hide and mask Robert's token
-                            withCredentials([string(credentialsId: 'robert_token', variable: 'SONAR_TOKEN')]) {
+                            withCredentials([string(credentialsId: 'sonarcloud-token-rombert', variable: 'SONAR_TOKEN')]) {
                                 def mvnCmd = "mvn -U clean verify sonar:sonar ${sonarcloudParams}"
                                 sh mvnCmd
                             }
