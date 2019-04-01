@@ -69,7 +69,7 @@ def call(Map params = [:]) {
                             // Note: soon we won't have to handle that manually, see https://jira.sonarsource.com/browse/SONAR-11853
                             if ( isPrBuild ) {
                                 sonarcloudParams="${sonarcloudParams} -Dsonar.pullrequest.branch=${CHANGE_BRANCH} -Dsonar.pullrequest.base=${CHANGE_TARGET} -Dsonar.pullrequest.key=${CHANGE_ID}"
-                            } else {
+                            } else if ( env.BRANCH_NAME != "master" ) {
                                 sonarcloudParams="${sonarcloudParams} -Dsonar.branch.name=${BRANCH_NAME}"
                             }
                             // Alls params are set, let's execute using #withCrendentials to hide and mask Robert's token
