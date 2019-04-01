@@ -63,7 +63,20 @@ def call(Map params = [:]) {
 
                     if ( jobConfig.sonarCloud ) {
                         stage('SonarCloud') {
-                            echo "stub"
+                            // As we don't have the global SonarCloud conf for now, we can't use #withSonarQubeEnv so we need to set the following props manually
+                            def sonarcloudParams="-Dsonar.host.url=https://sonarcloud.io -Dsonar.organization=apache"
+                            // Params are different if it's a PR or if it's not
+                            // Note: soon we won't have to handle that manually, see https://jira.sonarsource.com/browse/SONAR-11853
+                            if ( isPrBuild ) {
+                                sonarcloudParams="${sonarcloudParams} -Dsonar.pullrequest.branch=${CHANGE_BRANCH} -Dsonar.pullrequest.base=${CHANGE_TARGET} -Dsonar.pullrequest.key=${CHANGE_ID}"
+                            } else {
+                                sonarcloudParams="${sonarcloudParams} -Dsonar.branch.name=${BRANCH_NAME}"
+                            }
+                            // Alls params are set, let's execute using #withCrendentials to hide and mask Robert's token
+                            withCredentials([string(credentialsId: 'robert_token', variable: 'SONAR_TOKEN')]) {
+                                def mvnCmd = "mvn -U clean verify sonar:sonar ${sonarcloudParams}"
+                                sh mvnCmd
+                            }
                         }
                     }
   //              }
