@@ -74,8 +74,11 @@ def call(Map params = [:]) {
                             }
                             // Alls params are set, let's execute using #withCrendentials to hide and mask Robert's token
                             withCredentials([string(credentialsId: 'sonarcloud-token-rombert', variable: 'SONAR_TOKEN')]) {
-                                def mvnCmd = "mvn -U clean verify sonar:sonar ${sonarcloudParams}"
-                                sh mvnCmd
+                                withMaven(maven: globalConfig.mvnVersion, 
+                                    jdk: jenkinsJdkLabel(jobConfig.jdks[0], globalConfig),
+                                    publisherStrategy: 'EXPLICIT') {
+                                    sh "mvn -U clean verify sonar:sonar ${sonarcloudParams}"
+                                }
                             }
                         }
                     }
