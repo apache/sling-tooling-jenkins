@@ -30,59 +30,28 @@ def call(Map params = [:]) {
                 // also, we don't activate any Maven publisher since we don't want this part of the
                 // build tracked, but using withMaven(...) allows us to easily reuse the same
                 // Maven and JDK versions
-//                 if ( env.BRANCH_NAME == "master" ) {
-                    def additionalMavenParams = additionalMavenParams(jobConfig)
+                def additionalMavenParams = additionalMavenParams(jobConfig)
+                def isPrBuild = env.BRANCH_NAME.startsWith("PR-")
 
-                    // debugging for Sonar
-                    def hideCommandLine = false
-                    def isPrBuild = env.BRANCH_NAME.startsWith("PR-")
+                stage('SonarCloud') {
+                    // As we don't have the global SonarCloud conf for now, we can't use #withSonarQubeEnv so we need to set the following props manually
+                    def sonarcloudParams="-Dsonar.host.url=https://sonarcloud.io -Dsonar.organization=apache -Dsonar.projectKey=apache_${jobConfig.repoName} ${additionalMavenParams}"
+                    // Params are different if it's a PR or if it's not
+                    // Note: soon we won't have to handle that manually, see https://jira.sonarsource.com/browse/SONAR-11853
                     if ( isPrBuild ) {
-                        def repo = getGitHubRepoSlug()
-                        withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: globalConfig.githubCredentialsId, usernameVariable: 'USERNAME', passwordVariable: 'TOKEN']]) {
-                            additionalMavenParams="${additionalMavenParams} -Dsonar.analysis.mode=preview -Dsonar.github.pullRequest=${env.CHANGE_ID} -Dsonar.github.repository=${repo} -Dsonar.github.login=${USERNAME} -Dsonar.github.oauth=${TOKEN} -Dsonar.verbose=true -Dsonar.issuesReport.html.enable=true"
+                        sonarcloudParams="${sonarcloudParams} -Dsonar.pullrequest.branch=${CHANGE_BRANCH} -Dsonar.pullrequest.base=${CHANGE_TARGET} -Dsonar.pullrequest.key=${CHANGE_ID}"
+                    } else if ( env.BRANCH_NAME != "master" ) {
+                        sonarcloudParams="${sonarcloudParams} -Dsonar.branch.name=${BRANCH_NAME}"
+                    }
+                    // Alls params are set, let's execute using #withCrendentials to hide and mask Robert's token
+                    withCredentials([string(credentialsId: 'sonarcloud-token-rombert', variable: 'SONAR_TOKEN')]) {
+                        withMaven(maven: globalConfig.mvnVersion, 
+                            jdk: jenkinsJdkLabel(jobConfig.jdks[0], globalConfig),
+                            publisherStrategy: 'EXPLICIT') {
+                            sh "mvn -U clean verify sonar:sonar ${sonarcloudParams}"
                         }
                     }
-                    stage('SonarQube') {
-                        withSonarQubeEnv('ASF Sonar Analysis') {
-                            withMaven(maven: globalConfig.mvnVersion, 
-                                jdk: jenkinsJdkLabel(jobConfig.jdks[0], globalConfig),
-                                publisherStrategy: 'EXPLICIT') {
-                                
-                                def mvnCmd = "mvn -U clean verify sonar:sonar ${additionalMavenParams}"
-                                if ( isPrBuild )  // don't print out GitHub auth information
-                                    mvnCmd = "#!/bin/sh -e\n" + mvnCmd
-                                sh mvnCmd
-                                if ( isPrBuild ) {
-                                    archiveArtifacts artifacts: '**/target/sonar/issues-report/**'
-                                    addPullRequestComment("A SonarQube report for the changes added _only by this pull request_ was generated. Please review it at ${env.BUILD_URL}artifact/target/sonar/issues-report/issues-report-light.html")
-                                }
-
-                            }
-                        }
-                    }
-
-                    if ( jobConfig.sonarCloud ) {
-                        stage('SonarCloud') {
-                            // As we don't have the global SonarCloud conf for now, we can't use #withSonarQubeEnv so we need to set the following props manually
-                            def sonarcloudParams="-Dsonar.host.url=https://sonarcloud.io -Dsonar.organization=apache -Dsonar.projectKey=apache_${jobConfig.repoName} ${additionalMavenParams}"
-                            // Params are different if it's a PR or if it's not
-                            // Note: soon we won't have to handle that manually, see https://jira.sonarsource.com/browse/SONAR-11853
-                            if ( isPrBuild ) {
-                                sonarcloudParams="${sonarcloudParams} -Dsonar.pullrequest.branch=${CHANGE_BRANCH} -Dsonar.pullrequest.base=${CHANGE_TARGET} -Dsonar.pullrequest.key=${CHANGE_ID}"
-                            } else if ( env.BRANCH_NAME != "master" ) {
-                                sonarcloudParams="${sonarcloudParams} -Dsonar.branch.name=${BRANCH_NAME}"
-                            }
-                            // Alls params are set, let's execute using #withCrendentials to hide and mask Robert's token
-                            withCredentials([string(credentialsId: 'sonarcloud-token-rombert', variable: 'SONAR_TOKEN')]) {
-                                withMaven(maven: globalConfig.mvnVersion, 
-                                    jdk: jenkinsJdkLabel(jobConfig.jdks[0], globalConfig),
-                                    publisherStrategy: 'EXPLICIT') {
-                                    sh "mvn -U clean verify sonar:sonar ${sonarcloudParams}"
-                                }
-                            }
-                        }
-                    }
-  //              }
+                }
             } else {
                 echo "Job is disabled, not building"
             }
