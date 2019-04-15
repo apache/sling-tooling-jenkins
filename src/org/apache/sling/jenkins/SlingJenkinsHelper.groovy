@@ -62,7 +62,7 @@ def runWithErrorHandling(Closure build) {
             stage('Init') {
                 checkout scm
                 def url = sh(returnStdout: true, script: 'git config remote.origin.url').trim()
-                echo "Detected SCM url ${url}"
+                jobConfig.repoName = url.substring(url.lastIndexOf('/')).replace('.git', '');
                 if ( fileExists('.sling-module.json') ) {
                     overrides = readJSON file: '.sling-module.json'
                     echo "Jenkins overrides: ${overrides.jenkins}"
