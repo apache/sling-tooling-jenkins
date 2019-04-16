@@ -72,24 +72,6 @@ def additionalMavenParams(def jobConfig) {
         branchConfig.additionalMavenParams : jobConfig.additionalMavenParams
 }
 
-@NonCPS
-def getGitHubRepoSlug() {
-    if ( !env.CHANGE_URL )
-        return null
-    
-    def matcher = env.CHANGE_URL =~ /https:\/\/github\.com\/([\w-]+)\/([\w-]+)\/pull\/\d+/
-    if ( !matcher )
-        return null
-
-    return "${matcher.group(1)}/${matcher.group(2)}"
-}
-
-@NonCPS
-def addPullRequestComment(def message) {
-    def comment = pullRequest.comment(message)
-    return comment.id // prevent escape of a non-serializable object
-}
-
 def defineStage(def globalConfig, def jobConfig, def jdkVersion, def isReferenceStage) {
 
     def goal = jobConfig.mavenGoal ? jobConfig.mavenGoal : ( isReferenceStage ? "deploy" : "verify" )
