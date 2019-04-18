@@ -51,12 +51,9 @@ def call(Map params = [:]) {
                                 try {
                                     sh "mvn -U clean verify sonar:sonar ${sonarcloudParams}"
                                 } catch ( Exception e ) {
-                                    echo "Message is ${e.message}"
-                                    echo "Cause message is ${e.cause.message}"
-                                    if ( e.getMessage().contains("not authorized to run analysis")) {
-                                        echo "Marking build unstable due to missing SonarCloud onboarding. See https://cwiki.apache.org/confluence/display/SLING/SonarCloud+analysis for steps to fix."
-                                        currentBuild.result = 'UNSTABLE'
-                                    }
+                                    // TODO - find a better solution? https://stackoverflow.com/questions/55742773/get-the-cause-of-a-maven-build-failure-inside-a-jenkins-pipeline
+                                    echo "Marking build unstable, potentially due to missing SonarCloud onboarding. See https://cwiki.apache.org/confluence/display/SLING/SonarCloud+analysis for steps to fix."
+                                    currentBuild.result = 'UNSTABLE'
                                 }
                         }
                     }
