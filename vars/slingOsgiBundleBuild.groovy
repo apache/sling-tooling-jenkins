@@ -48,7 +48,14 @@ def call(Map params = [:]) {
                         withMaven(maven: globalConfig.mvnVersion, 
                             jdk: jenkinsJdkLabel(jobConfig.jdks[0], globalConfig),
                             publisherStrategy: 'EXPLICIT') {
-                            sh "mvn -U clean verify sonar:sonar ${sonarcloudParams}"
+                                try {
+                                    sh "mvn -U clean verify sonar:sonar ${sonarcloudParams}"
+                                } catch ( Exception e ) {
+                                    if ( e.getMessage().contains("not authorized to run analysis")) {
+                                        echo "Marking build unstable due to missing SonarCloud onboarding. See https://cwiki.apache.org/confluence/display/SLING/SonarCloud+analysis for steps to fix."
+                                        currentBuild.result = "UNSTABLE"
+                                    }
+                                }
                         }
                     }
                 }
