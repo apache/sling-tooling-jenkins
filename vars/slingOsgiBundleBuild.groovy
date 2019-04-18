@@ -50,7 +50,7 @@ def call(Map params = [:]) {
                             publisherStrategy: 'EXPLICIT') {
                                 def output = ""
                                 try {
-                                    output = sh (script; "mvn -U clean verify sonar:sonar ${sonarcloudParams}", returnStdout: true).trim()
+                                    output = sh (script: "mvn -U clean verify sonar:sonar ${sonarcloudParams}", returnStdout: true).trim()
                                 } catch ( Exception e ) {
                                     if ( output.contains("not authorized to run analysis") ) {
                                         echo "Marking build unstable due to missing SonarCloud onboarding. See https://cwiki.apache.org/confluence/display/SLING/SonarCloud+analysis for steps to fix."
