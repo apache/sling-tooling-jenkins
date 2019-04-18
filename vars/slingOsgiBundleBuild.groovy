@@ -52,6 +52,7 @@ def call(Map params = [:]) {
                                     sh "mvn -U clean verify sonar:sonar ${sonarcloudParams}"
                                 } catch ( Exception e ) {
                                     echo "Message is ${e.message}"
+                                    echo "Cause message is ${e.cause.message}"
                                     if ( e.getMessage().contains("not authorized to run analysis")) {
                                         echo "Marking build unstable due to missing SonarCloud onboarding. See https://cwiki.apache.org/confluence/display/SLING/SonarCloud+analysis for steps to fix."
                                         currentBuild.result = 'UNSTABLE'
