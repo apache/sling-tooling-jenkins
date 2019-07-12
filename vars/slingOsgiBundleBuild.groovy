@@ -94,7 +94,8 @@ def defineStage(def globalConfig, def jobConfig, def jdkVersion, def isReference
     // also do not deploy non-SNAPSHOT versions
     if ( goal == "deploy" ) {
         def notMaster =  env.BRANCH_NAME != "master"
-        def mavenVersion = readMavenPom().version
+        def mavenPom = readMavenPom()
+        def mavenVersion = mavenPom.version ?: mavenPom.parent.version
         def isSnapshot = mavenVersion.endsWith('-SNAPSHOT')
         if ( notMaster || !isSnapshot ) {
             goal = "verify"
