@@ -16,7 +16,9 @@ def call(Map params = [:]) {
         helper.runWithErrorHandling({ jobConfig ->
             if ( jobConfig.enabled ) {
                 if ( fileExists('org-apache-sling-scripting-sightly') ) {
-                    deleteDir('org-apache-sling-scripting-sightly')
+                    dir('org-apache-sling-scripting-sightly') {
+                        deleteDir()
+                    }
                 }
 
 
