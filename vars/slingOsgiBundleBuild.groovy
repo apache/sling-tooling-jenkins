@@ -15,12 +15,6 @@ def call(Map params = [:]) {
 
         helper.runWithErrorHandling({ jobConfig ->
             if ( jobConfig.enabled ) {
-                if ( fileExists('org-apache-sling-scripting-sightly') ) {
-                    dir('org-apache-sling-scripting-sightly') {
-                        deleteDir()
-                    }
-                }
-
 
                 // the reference build is always the first one, and the only one to deploy, archive artifacts, etc
                 // usually this is the build done with the oldest JDK version, to ensure maximum compatibility
