@@ -142,6 +142,8 @@ def sendNotifications(def jobConfig) {
     def change = null;
     def recipientProviders = []
 
+    echo "[DEBUG] current result is ${current}, previous result is ${previous}"
+
     // 1. changes from success or unknown to non-success
     if ( (previous == null || previous == "SUCCESS") && current != "SUCCESS" ) {
         change = "BROKEN"
