@@ -127,13 +127,6 @@ def sendNotifications(def jobConfig) {
         return
     }
 
-    def recipients = jobConfig['emailRecipients']
-
-    if ( !recipients ) {
-        echo "No recipients defined, not sending notifications."
-        return
-    }
-
     // values described at https://javadoc.jenkins-ci.org/hudson/model/Result.html
     // Note that we don't handle consecutive failures to prevent mail spamming
 
@@ -143,6 +136,13 @@ def sendNotifications(def jobConfig) {
     def recipientProviders = []
 
     echo "[DEBUG] current result (variant 1) is ${current}, current result (variant 2) is ${currentBuild.currentResult}, previous result is ${previous}"
+
+    def recipients = jobConfig['emailRecipients']
+
+    if ( !recipients ) {
+        echo "No recipients defined, not sending notifications."
+        return
+    }
 
     // 1. changes from success or unknown to non-success
     if ( (previous == null || previous == "SUCCESS") && current != "SUCCESS" ) {
