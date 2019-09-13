@@ -3,7 +3,7 @@ import org.apache.sling.jenkins.SlingJenkinsHelper;
 def call(Map params = [:]) {
 
     def globalConfig = [
-        availableJDKs : [ 8: 'JDK 1.8 (latest)', 9: 'JDK 1.9 (latest)', 10: 'JDK 10 (latest)', 11: 'JDK 11 (latest)', 12: 'JDK 12 (latest)', 13: 'JDK 13 (latest)', 14,: 'JDK 14 (latest)'],
+        availableJDKs : [ 8: 'JDK 1.8 (latest)', 9: 'JDK 1.9 (latest)', 10: 'JDK 10 (latest)', 11: 'JDK 11 (latest)', 12: 'JDK 12 (latest)', 13: 'JDK 13 (latest)', 14: 'JDK 14 (latest)'],
         mvnVersion : 'Maven (latest)',
         mainNodeLabel : 'ubuntu',
         githubCredentialsId: 'sling-github-token'
