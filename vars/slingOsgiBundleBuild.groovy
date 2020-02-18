@@ -52,15 +52,10 @@ def call(Map params = [:]) {
                                 try {
                                      sh  "mvn -U clean verify sonar:sonar ${sonarcloudParams}"
                                 } catch ( Exception e ) {
-                                    // TODO - we should actually check here, but see https://stackoverflow.com/questions/55742773/get-the-cause-of-a-maven-build-failure-inside-a-jenkins-pipeline/55744122
-                                    // for problems with the approach
-                                    def projectNotOnboardedToSonarQube = true
-                                    if ( projectNotOnboardedToSonarQube ) {
-                                        echo "Marking build unstable due to missing SonarCloud onboarding. See https://cwiki.apache.org/confluence/display/SLING/SonarCloud+analysis for steps to fix."
-                                        currentBuild.result = 'UNSTABLE'
-                                    } else {
-                                        throw e;
-                                    }
+                                    // TODO - we should check the actual failure cause here, but see
+                                    // https://stackoverflow.com/questions/55742773/get-the-cause-of-a-maven-build-failure-inside-a-jenkins-pipeline/55744122
+                                    echo "Marking build unstable due to mvn sonar:sonar failing. See https://cwiki.apache.org/confluence/display/SLING/SonarCloud+analysis for more info."
+                                    currentBuild.result = 'UNSTABLE'
                                 }
                         }
                     }
