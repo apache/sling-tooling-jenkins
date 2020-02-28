@@ -36,7 +36,7 @@ def call(Map params = [:]) {
 
                 stage('SonarCloud') {
                     // As we don't have the global SonarCloud conf for now, we can't use #withSonarQubeEnv so we need to set the following props manually
-                    def sonarcloudParams="-Dsonar.host.url=https://sonarcloud.io -Dsonar.organization=apache -Dsonar.projectKey=apache_${jobConfig.repoName} -Pjacoco-report -Dsonar.jacoco.reportPaths=target/jacoco-merged.exec ${additionalMavenParams}"
+                    def sonarcloudParams="-Dsonar.host.url=https://sonarcloud.io -Dsonar.organization=apache -Dsonar.projectKey=apache_${jobConfig.repoName} -Pjacoco-report -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco-merged/jacoco.xml ${additionalMavenParams}"
                     // Params are different if it's a PR or if it's not
                     // Note: soon we won't have to handle that manually, see https://jira.sonarsource.com/browse/SONAR-11853
                     if ( isPrBuild ) {
