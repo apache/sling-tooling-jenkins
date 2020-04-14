@@ -61,6 +61,7 @@ def runWithErrorHandling(Closure build) {
 
             stage('Init') {
                 checkout scm
+                sh "git clean -fdx"
                 def url = sh(returnStdout: true, script: 'git config remote.origin.url').trim()
                 jobConfig.repoName = url.substring(url.lastIndexOf('/') + 1).replace('.git', '');
                 if ( fileExists('.sling-module.json') ) {
