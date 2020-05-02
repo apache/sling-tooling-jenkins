@@ -53,7 +53,10 @@ def runWithErrorHandling(Closure build) {
         additionalMavenParams: '',
         rebuildFrequency: '@weekly',
         enabled: true,
-        emailRecipients: []
+        emailRecipients: [],
+        sonarQubeEnabled: true,
+        sonarQubeUseAdditionalMavenParams: true,
+        sonarQubeAdditionalParams: ''
     ]
 
     try {
