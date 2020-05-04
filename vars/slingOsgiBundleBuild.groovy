@@ -63,9 +63,9 @@ def call(Map params = [:]) {
                                     }
                             }
                         }
-                    } else {
-                        echo "SonarQube execution is disabled"
                     }
+                } else {
+                    echo "SonarQube execution is disabled"
                 }
             } else {
                 echo "Job is disabled, not building"
