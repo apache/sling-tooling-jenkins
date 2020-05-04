@@ -34,30 +34,37 @@ def call(Map params = [:]) {
                 def additionalMavenParams = additionalMavenParams(jobConfig)
                 def isPrBuild = env.BRANCH_NAME.startsWith("PR-")
 
-                stage('SonarCloud') {
-                    // As we don't have the global SonarCloud conf for now, we can't use #withSonarQubeEnv so we need to set the following props manually
-                    def sonarcloudParams="-Dsonar.host.url=https://sonarcloud.io -Dsonar.organization=apache -Dsonar.projectKey=apache_${jobConfig.repoName} -Pjacoco-report -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco-merged/jacoco.xml ${additionalMavenParams}"
-                    // Params are different if it's a PR or if it's not
-                    // Note: soon we won't have to handle that manually, see https://jira.sonarsource.com/browse/SONAR-11853
-                    if ( isPrBuild ) {
-                        sonarcloudParams="${sonarcloudParams} -Dsonar.pullrequest.branch=${CHANGE_BRANCH} -Dsonar.pullrequest.base=${CHANGE_TARGET} -Dsonar.pullrequest.key=${CHANGE_ID}"
-                    } else if ( env.BRANCH_NAME != "master" ) {
-                        sonarcloudParams="${sonarcloudParams} -Dsonar.branch.name=${BRANCH_NAME}"
-                    }
-                    // Alls params are set, let's execute using #withCrendentials to hide and mask Robert's token
-                    withCredentials([string(credentialsId: 'sonarcloud-token-rombert', variable: 'SONAR_TOKEN')]) {
-                        withMaven(maven: globalConfig.mvnVersion, 
-                            jdk: jenkinsJdkLabel(jobConfig.jdks[0], globalConfig),
-                            publisherStrategy: 'EXPLICIT') {
-                                try {
-                                     sh  "mvn -U clean verify sonar:sonar ${sonarcloudParams}"
-                                } catch ( Exception e ) {
-                                    // TODO - we should check the actual failure cause here, but see
-                                    // https://stackoverflow.com/questions/55742773/get-the-cause-of-a-maven-build-failure-inside-a-jenkins-pipeline/55744122
-                                    echo "Marking build unstable due to mvn sonar:sonar failing. See https://cwiki.apache.org/confluence/display/SLING/SonarCloud+analysis for more info."
-                                    currentBuild.result = 'UNSTABLE'
-                                }
+                if ( jobConfig.sonarQubeEnabled ) {
+                    stage('SonarCloud') {
+                        // As we don't have the global SonarCloud conf for now, we can't use #withSonarQubeEnv so we need to set the following props manually
+                        def sonarcloudParams="-Dsonar.host.url=https://sonarcloud.io -Dsonar.organization=apache -Dsonar.projectKey=apache_${jobConfig.repoName} -Pjacoco-report -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco-merged/jacoco.xml ${jobConfig.sonarQubeAdditionalParams}"
+                        if ( jobConfig.sonarQubeUseAdditionalMavenParams ) {
+                            sonarcloudParams="${sonarcloudParams} ${additionalMavenParams}"
                         }
+                        // Params are different if it's a PR or if it's not
+                        // Note: soon we won't have to handle that manually, see https://jira.sonarsource.com/browse/SONAR-11853
+                        if ( isPrBuild ) {
+                            sonarcloudParams="${sonarcloudParams} -Dsonar.pullrequest.branch=${CHANGE_BRANCH} -Dsonar.pullrequest.base=${CHANGE_TARGET} -Dsonar.pullrequest.key=${CHANGE_ID}"
+                        } else if ( env.BRANCH_NAME != "master" ) {
+                            sonarcloudParams="${sonarcloudParams} -Dsonar.branch.name=${BRANCH_NAME}"
+                        }
+                        // Alls params are set, let's execute using #withCrendentials to hide and mask Robert's token
+                        withCredentials([string(credentialsId: 'sonarcloud-token-rombert', variable: 'SONAR_TOKEN')]) {
+                            withMaven(maven: globalConfig.mvnVersion, 
+                                jdk: jenkinsJdkLabel(jobConfig.jdks[0], globalConfig),
+                                publisherStrategy: 'EXPLICIT') {
+                                    try {
+                                         sh  "mvn -U clean verify sonar:sonar ${sonarcloudParams}"
+                                    } catch ( Exception e ) {
+                                        // TODO - we should check the actual failure cause here, but see
+                                        // https://stackoverflow.com/questions/55742773/get-the-cause-of-a-maven-build-failure-inside-a-jenkins-pipeline/55744122
+                                        echo "Marking build unstable due to mvn sonar:sonar failing. See https://cwiki.apache.org/confluence/display/SLING/SonarCloud+analysis for more info."
+                                        currentBuild.result = 'UNSTABLE'
+                                    }
+                            }
+                        }
+                    } else {
+                        echo "SonarQube execution is disabled"
                     }
                 }
             } else {
