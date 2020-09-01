@@ -8,5 +8,8 @@ Sling Jenkins jobs creation
 The scripts found in this folder are used to create the Jenkins jobs
 listed at https://builds.apache.org/view/S-Z/view/Sling/
 
+The master branch of this module is pulled directly from the Jenkins
+builds, no deployment step is required to activate changes.
+
 See https://cwiki.apache.org/confluence/display/SLING/Sling+Jenkins+Setup
 for more info.
