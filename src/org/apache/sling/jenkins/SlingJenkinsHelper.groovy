@@ -60,7 +60,7 @@ def runWithErrorHandling(Closure build) {
     ]
 
     try {
-        timeout(time:15, unit: 'MINUTES', activity: true) {
+        timeout(time:30, unit: 'MINUTES', activity: true) {
 
             stage('Init') {
                 checkout scm
