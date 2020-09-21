@@ -54,7 +54,7 @@ def call(Map params = [:]) {
                                 jdk: jenkinsJdkLabel(jobConfig.jdks[0], globalConfig),
                                 publisherStrategy: 'EXPLICIT') {
                                     try {
-                                         sh  "mvn -U clean verify sonar:sonar ${sonarcloudParams}"
+                                         sh  "mvn -U clean verify sonar:sonar ${sonarcloudParams} -Pci"
                                     } catch ( Exception e ) {
                                         // TODO - we should check the actual failure cause here, but see
                                         // https://stackoverflow.com/questions/55742773/get-the-cause-of-a-maven-build-failure-inside-a-jenkins-pipeline/55744122
@@ -115,7 +115,7 @@ def defineStage(def globalConfig, def jobConfig, def jdkVersion, def isReference
                 dependenciesFingerprintPublisher(disabled: !isReferenceStage)
             ] ) {
 
-            sh "mvn -U clean ${goal} ${additionalMavenParams}"
+            sh "mvn -U clean ${goal} ${additionalMavenParams} -Pci"
         }
         if ( isReferenceStage && jobConfig.archivePatterns ) {
             archiveArtifacts(artifacts: SlingJenkinsHelper.jsonArrayToCsv(jobConfig.archivePatterns), allowEmptyArchive: true)
