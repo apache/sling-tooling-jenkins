@@ -116,7 +116,7 @@ def defineStage(def globalConfig, def jobConfig, def jdkVersion, def isReference
                 dependenciesFingerprintPublisher(disabled: !isReferenceStage)
             ] ) {
 
-            sh "mvn -U clean ${goal} ${additionalMavenParams} -Pci"
+            sh "mvn -U clean ${goal} ${additionalMavenParams} -Dci"
         }
         if ( isReferenceStage && jobConfig.archivePatterns ) {
             archiveArtifacts(artifacts: SlingJenkinsHelper.jsonArrayToCsv(jobConfig.archivePatterns), allowEmptyArchive: true)
