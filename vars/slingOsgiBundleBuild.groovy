@@ -77,8 +77,11 @@ def call(Map params = [:]) {
 
 def jenkinsJdkLabel(int jdkVersion, def globalConfig) {
     def label = globalConfig.availableJDKs[jdkVersion]
-    if ( !label )
+    if ( !label ) {
+        // debug
+        echo "No label for JDK version ${jdkVersion} in ${globalConfig.availableJDKs}"
         throw new RuntimeException("Unknown JDK version ${jdkVersion}")    
+    }
     return label
 }
 
