@@ -55,7 +55,7 @@ def call(Map params = [:]) {
                                 jdk: jenkinsJdkLabel(11, globalConfig),
                                 publisherStrategy: 'EXPLICIT') {
                                     try {
-                                         sh  "mvn -U clean verify sonar:sonar ${sonarcloudParams} -Pci"
+                                         sh  "mvn -U clean verify org.sonarsource.scanner.maven:sonar-maven-plugin:3.9.1.2184 ${sonarcloudParams} -Pci"
                                     } catch ( Exception e ) {
                                         // TODO - we should check the actual failure cause here, but see
                                         // https://stackoverflow.com/questions/55742773/get-the-cause-of-a-maven-build-failure-inside-a-jenkins-pipeline/55744122
