@@ -43,57 +43,10 @@ def static jsonArrayToCsv(net.sf.json.JSONArray items) {
 }
 
 
-def runWithErrorHandling(Closure build) {
-
-    def jobConfig = [
-        jdks: [8],
-        upstreamProjects: [],
-        archivePatterns: [],
-        mavenGoal: '',
-        additionalMavenParams: '',
-        rebuildFrequency: '@weekly',
-        enabled: true,
-        emailRecipients: [],
-        sonarQubeEnabled: true,
-        sonarQubeUseAdditionalMavenParams: true,
-        sonarQubeAdditionalParams: ''
-    ]
+def runWithErrorHandling(def jobConfig, Closure build) {
 
     try {
-        timeout(time:30, unit: 'MINUTES', activity: true) {
-
-            stage('Init') {
-                checkout scm
-                sh "git clean -fdx"
-                def url = sh(returnStdout: true, script: 'git config remote.origin.url').trim()
-                jobConfig.repoName = url.substring(url.lastIndexOf('/') + 1).replace('.git', '');
-                if ( fileExists('.sling-module.json') ) {
-                    overrides = readJSON file: '.sling-module.json'
-                    echo "Jenkins overrides: ${overrides.jenkins}"
-                    overrides.jenkins.each { key,value ->
-                        jobConfig[key] = value;
-                    }
-                }
-                echo "Final job config: ${jobConfig}"
-            }
-                
-            stage('Configure Job') {
-                def upstreamProjectsCsv = jobConfig.upstreamProjects ? 
-                    jsonArrayToCsv(jobConfig.upstreamProjects) : ''
-                def jobTriggers = []
-                if ( env.BRANCH_NAME == 'master' )
-                    jobTriggers.add(cron(jobConfig.rebuildFrequency))
-                if ( upstreamProjectsCsv )
-                    jobTriggers.add(upstream(upstreamProjects: upstreamProjectsCsv, threshold: hudson.model.Result.SUCCESS))
-
-                properties([
-                    pipelineTriggers(jobTriggers),
-                    buildDiscarder(logRotator(numToKeepStr: '10'))
-                ])
-            }
-
-            build.call(jobConfig)
-        }
+        build.call()
     // exception handling copied from https://github.com/apache/maven-jenkins-lib/blob/d6c76aaea9df19ad88439eba4f9d1ad6c9e272bd/vars/asfMavenTlpPlgnBuild.groovy
     } catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e) {
         // this ambiguous condition means a user probably aborted
