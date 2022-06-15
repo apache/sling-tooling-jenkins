@@ -266,7 +266,7 @@ boolean shouldDeploy(String goal) {
 }
 
 boolean isOnMainBranch() {
-    return env.BRANCH_NAME == "master"
+    return env.BRANCH_NAME == 'feature/test-parallel-builds'
 }
 
 def wrapInNode(def nodeLabel, Closure invocation) {
