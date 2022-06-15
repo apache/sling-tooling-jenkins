@@ -171,6 +171,7 @@ def defineStage(def globalConfig, def jobConfig, def jdkVersion, boolean isRefer
 
     return {
         wrapInNode(branchConfig.nodeLabel ?: globalConfig.mainNodeLabel, {
+            echo "Running on node ${env.NODE_NAME}"
             timeout(time: 30, unit: 'MINUTES') {
                 stage("Maven Build (Java ${jdkVersion}, ${goal})") {
                     invocation.call()
