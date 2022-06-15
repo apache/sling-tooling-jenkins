@@ -43,23 +43,21 @@ def call(Map params = [:]) {
         }
     }
 
-    if ( isOnMainBranch() ) {
-        node(globalConfig.mainNodeLabel) {
-            timeout(time:30, unit: 'MINUTES', activity: true) {
-                stage('Configure Job') {
-                    def upstreamProjectsCsv = jobConfig.upstreamProjects ?
-                        jsonArrayToCsv(jobConfig.upstreamProjects) : ''
-                    def jobTriggers = []
-                    if ( env.BRANCH_NAME == 'master' )
-                        jobTriggers.add(cron(jobConfig.rebuildFrequency))
-                    if ( upstreamProjectsCsv )
-                        jobTriggers.add(upstream(upstreamProjects: upstreamProjectsCsv, threshold: hudson.model.Result.SUCCESS))
-    
-                    properties([
-                        pipelineTriggers(jobTriggers),
-                        buildDiscarder(logRotator(numToKeepStr: '10'))
-                    ])
-                }
+    node(globalConfig.mainNodeLabel) {
+        timeout(time:30, unit: 'MINUTES', activity: true) {
+            stage('Configure Job') {
+                def upstreamProjectsCsv = jobConfig.upstreamProjects ?
+                    jsonArrayToCsv(jobConfig.upstreamProjects) : ''
+                def jobTriggers = []
+                if ( isOnMainBranch() )
+                    jobTriggers.add(cron(jobConfig.rebuildFrequency))
+                if ( upstreamProjectsCsv )
+                    jobTriggers.add(upstream(upstreamProjects: upstreamProjectsCsv, threshold: hudson.model.Result.SUCCESS))
+
+                properties([
+                    pipelineTriggers(jobTriggers),
+                    buildDiscarder(logRotator(numToKeepStr: '10'))
+                ])
             }
         }
     }
@@ -104,7 +102,7 @@ def call(Map params = [:]) {
             if ( shouldDeploy ) {
                 node(globalConfig.mainNodeLabel) {
                     stage("Deploy to Nexus") {
-                        deployToNexus()
+                        deployToNexus(globalConfig)
                     }
                 }
             }
@@ -147,7 +145,7 @@ def defineStage(def globalConfig, def jobConfig, def jdkVersion, boolean isRefer
             dir(localRepoPath) {
                 deleteDir()
             }
-            // main build with IT for properly calculating coverage
+            // deploy to local directory (all artifacts from a reactor)
             additionalMavenParams = "${additionalMavenParams} -DaltDeploymentRepository=snapshot-repo::default::file:${localRepoPath}"
         }
         withMaven(maven: globalConfig.mvnVersion, jdk: jenkinsJdkLabel,
@@ -164,7 +162,7 @@ def defineStage(def globalConfig, def jobConfig, def jdkVersion, boolean isRefer
             archiveArtifacts(artifacts: SlingJenkinsHelper.jsonArrayToCsv(jobConfig.archivePatterns), allowEmptyArchive: true)
         }
         if ( isReferenceStage && goal == "deploy" && shouldDeploy ) {
-            // Stash the build results so we can deploy them on another node
+            // Stash the build results from the local deployment directory so we can deploy them on another node
             stash name: 'local-snapshots-dir', includes: 'local-snapshots-dir/**'
         }
     }
@@ -209,7 +207,7 @@ def analyseWithSonarCloud(def globalConfig, def jobConfig) {
     // Note: soon we won't have to handle that manually, see https://jira.sonarsource.com/browse/SONAR-11853
     if ( isPrBuild ) {
         sonarcloudParams="${sonarcloudParams} -Dsonar.pullrequest.branch=${CHANGE_BRANCH} -Dsonar.pullrequest.base=${CHANGE_TARGET} -Dsonar.pullrequest.key=${CHANGE_ID}"
-    } else if ( env.BRANCH_NAME != "master" ) {
+    } else if ( isOnMainBranch() ) {
         sonarcloudParams="${sonarcloudParams} -Dsonar.branch.name=${BRANCH_NAME}"
     }
     static final String SONAR_PLUGIN_GAV = 'org.sonarsource.scanner.maven:sonar-maven-plugin:3.9.1.2184'
@@ -231,7 +229,7 @@ def analyseWithSonarCloud(def globalConfig, def jobConfig) {
     }
 }
 
-def deployToNexus() {
+def deployToNexus(def globalConfig) {
     node('nexus-deploy') {
         timeout(60) {
             echo "Running on node ${env.NODE_NAME}"
@@ -242,8 +240,13 @@ def deployToNexus() {
             // Unstash the previously stashed build results.
             unstash name: 'local-snapshots-dir'
             // https://www.mojohaus.org/wagon-maven-plugin/merge-maven-repos-mojo.html
-            String mavenArguments = "${wagonPluginGav}:merge-maven-repos -Dwagon.target=https://repository.apache.org/content/repositories/snapshots -Dwagon.targetId=apache.snapshots.https -Dwagon.source=file:${env.WORKSPACE}/local-snapshots-dir"
-            pipelineSupport.executeMaven(this, mavenArguments, false)
+            static final String WAGON_PLUGIN_GAV = "org.codehaus.mojo:wagon-maven-plugin:2.0.2"
+            String mavenArguments = "${WAGON_PLUGIN_GAV}:merge-maven-repos -Dwagon.target=https://repository.apache.org/content/repositories/snapshots -Dwagon.targetId=apache.snapshots.https -Dwagon.source=file:${env.WORKSPACE}/local-snapshots-dir"
+            withMaven(maven: globalConfig.mvnVersion,
+                     jdk: jenkinsJdkLabel(11, globalConfig),
+                     publisherStrategy: 'EXPLICIT') {
+                        sh "mvn ${mavenArguments}"
+            }
         }
     }
 }
