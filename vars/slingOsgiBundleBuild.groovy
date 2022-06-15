@@ -101,7 +101,8 @@ def call(Map params = [:]) {
             parallel stepsMap
 
             // last stage is deploy
-            if ( shouldDeploy ) {
+            def goal = jobConfig.mavenGoal ?: "deploy"
+            if ( goal == "deploy" && shouldDeploy ) {
                 node(globalConfig.mainNodeLabel) {
                     stage("Deploy to Nexus") {
                         deployToNexus(globalConfig)
