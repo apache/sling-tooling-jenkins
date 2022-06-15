@@ -22,7 +22,7 @@ def call(Map params = [:]) {
         sonarQubeUseAdditionalMavenParams: true,
         sonarQubeAdditionalParams: ''
     ]
-    
+    boolean shouldDeploy = false
     node(globalConfig.mainNodeLabel) {
         timeout(time:5, unit: 'MINUTES') {
             stage('Init') {
@@ -38,6 +38,7 @@ def call(Map params = [:]) {
                     }
                 }
                 echo "Final job config: ${jobConfig}"
+                shouldDeploy = getShouldDeploy()
             }
         }
     }
@@ -68,14 +69,14 @@ def call(Map params = [:]) {
         helper.runWithErrorHandling(jobConfig, {
             // the reference build is always the first one, and the only one to deploy, archive artifacts, etc
             // usually this is the build done with the oldest JDK version, to ensure maximum compatibility
-            def isReferenceStage = true
+            boolean isReferenceStage = true
 
             // contains the label as key and a closure to execute as value
             def stepsMap = [:]
             def referenceJdkVersion
             // parallel execution of all build jobs
             jobConfig.jdks.each { jdkVersion -> 
-                stageDefinition = defineStage(globalConfig, jobConfig, jdkVersion, isReferenceStage)
+                stageDefinition = defineStage(globalConfig, jobConfig, jdkVersion, isReferenceStage, shouldDeploy)
                 if ( isReferenceStage ) {
                     referenceJdkVersion = jdkVersion
                 }
@@ -100,7 +101,7 @@ def call(Map params = [:]) {
             parallel stepsMap
 
             // last stage is deploy
-            if ( shouldDeploy('deploy') ) {
+            if ( shouldDeploy ) {
                 node(globalConfig.mainNodeLabel) {
                     stage("Deploy to Nexus") {
                         deployToNexus()
@@ -126,7 +127,7 @@ def additionalMavenParams(def jobConfig) {
         branchConfig.additionalMavenParams : jobConfig.additionalMavenParams
 }
 
-def defineStage(def globalConfig, def jobConfig, def jdkVersion, def isReferenceStage) {
+def defineStage(def globalConfig, def jobConfig, def jdkVersion, boolean isReferenceStage, boolean shouldDeploy) {
 
     def goal = jobConfig.mavenGoal ? jobConfig.mavenGoal : ( isReferenceStage ? "deploy" : "verify" )
     def additionalMavenParams = additionalMavenParams(jobConfig)
@@ -134,13 +135,13 @@ def defineStage(def globalConfig, def jobConfig, def jdkVersion, def isReference
 
     // do not deploy artifacts built from PRs or feature branches
     // also do not deploy non-SNAPSHOT versions
-    if ( goal == "deploy" && ! shouldDeploy(goal) ) {
+    if ( goal == "deploy" && !shouldDeploy ) {
         goal = "verify"
         echo "Maven goal set to ${goal} since branch is not master ( ${env.BRANCH_NAME} ) or version is not snapshot"
     }
 
     def invocation = {
-        if ( isReferenceStage && shouldDeploy(goal) ) {
+        if ( isReferenceStage && goal == "deploy" && shouldDeploy ) {
             String localRepoPath = "${env.WORKSPACE}/local-snapshots-dir"
             // Make sure the directory is wiped.
             dir(localRepoPath) {
@@ -162,7 +163,7 @@ def defineStage(def globalConfig, def jobConfig, def jdkVersion, def isReference
         if ( isReferenceStage && jobConfig.archivePatterns ) {
             archiveArtifacts(artifacts: SlingJenkinsHelper.jsonArrayToCsv(jobConfig.archivePatterns), allowEmptyArchive: true)
         }
-        if ( isReferenceStage && shouldDeploy(goal) ) {
+        if ( isReferenceStage && goal == "deploy" && shouldDeploy ) {
             // Stash the build results so we can deploy them on another node
             stash name: 'local-snapshots-dir', includes: 'local-snapshots-dir/**'
         }
@@ -247,12 +248,9 @@ def deployToNexus() {
     }
 }
 
-boolean shouldDeploy(String goal) {
+boolean getShouldDeploy() {
     // check branch name
     if ( !isOnMainBranch() ) {
-        return false
-    }
-    if (goal != 'deploy') {
         return false
     }
     // check version
