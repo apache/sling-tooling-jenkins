@@ -82,6 +82,7 @@ def call(Map params = [:]) {
                 isReferenceStage = false
                 currentBuild.result = "SUCCESS"
             }
+
             // do a quick sanity check first without tests if multiple parallel builds are required
             if ( stepsMap.size() > 1 ) {
                 node(globalConfig.mainNodeLabel) {
@@ -94,7 +95,7 @@ def call(Map params = [:]) {
                     }
                 }
             }
-            
+
             // execute the actual Maven builds
             parallel stepsMap
 
@@ -171,9 +172,9 @@ def defineStage(def globalConfig, def jobConfig, def jdkVersion, boolean isRefer
 
     return {
         wrapInNode(branchConfig.nodeLabel ?: globalConfig.mainNodeLabel, {
-            echo "Running on node ${env.NODE_NAME}"
             timeout(time: 30, unit: 'MINUTES') {
                 stage("Maven Build (Java ${jdkVersion}, ${goal})") {
+                    echo "Running on node ${env.NODE_NAME}"
                     invocation.call()
                 }
             }
@@ -268,7 +269,7 @@ boolean getShouldDeploy() {
 }
 
 boolean isOnMainBranch() {
-    return env.BRANCH_NAME == 'feature/test-parallel-builds'
+    return env.BRANCH_NAME == 'master'
 }
 
 def wrapInNode(def nodeLabel, Closure invocation) {
