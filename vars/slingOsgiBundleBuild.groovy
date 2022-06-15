@@ -87,6 +87,7 @@ def call(Map params = [:]) {
             if ( stepsMap.size() > 1 ) {
                 node(globalConfig.mainNodeLabel) {
                     stage("Sanity Check") {
+                        checkout scm
                         withMaven(maven: globalConfig.mvnVersion,
                             jdk: jenkinsJdkLabel(referenceJdkVersion, globalConfig),
                             publisherStrategy: 'EXPLICIT') {
@@ -149,6 +150,7 @@ def defineStage(def globalConfig, def jobConfig, def jdkVersion, boolean isRefer
             // deploy to local directory (all artifacts from a reactor)
             additionalMavenParams = "${additionalMavenParams} -DaltDeploymentRepository=snapshot-repo::default::file:${localRepoPath}"
         }
+        checkout scm
         withMaven(maven: globalConfig.mvnVersion, jdk: jenkinsJdkLabel,
             options: [
                 artifactsPublisher(disabled: !isReferenceStage),
