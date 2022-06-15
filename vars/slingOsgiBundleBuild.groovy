@@ -178,7 +178,7 @@ def defineStage(def globalConfig, def jobConfig, def jdkVersion, boolean isRefer
                 }
             }
             if ( isReferenceStage ) {
-                // SonarQube (must be wrapped in same node)
+                // SonarQube must be executed on the same node in order to reuse artifact from the Maven build
                 if ( jobConfig.sonarQubeEnabled ) {
                     stage('Analyse with SonarCloud') {
                         timeout(time: 30, unit: 'MINUTES') {
