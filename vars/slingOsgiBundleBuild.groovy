@@ -78,7 +78,7 @@ def call(Map params = [:]) {
                 if ( isReferenceStage ) {
                     referenceJdkVersion = jdkVersion
                 }
-                stepsMap["Build (Java ${jdkVersion})"] = stageDefinition.call()
+                stepsMap["Build (Java ${jdkVersion})"] = stageDefinition
                 isReferenceStage = false
                 currentBuild.result = "SUCCESS"
             }
@@ -144,7 +144,7 @@ def defineStage(def globalConfig, def jobConfig, def jdkVersion, boolean isRefer
     def invocation = {
         if ( isReferenceStage ) {
             if ( goal == "deploy" && shouldDeploy ) {
-                String localRepoPath = "${env.WORKSPACE}/local-snapshots-dir"
+                String localRepoPath = "${env.WORKSPACE}/target/local-snapshots-dir"
                 // Make sure the directory is wiped.
                 dir(localRepoPath) {
                     deleteDir()
@@ -157,6 +157,7 @@ def defineStage(def globalConfig, def jobConfig, def jdkVersion, boolean isRefer
         }
         checkout scm
         withMaven(maven: globalConfig.mvnVersion, jdk: jenkinsJdkLabel,
+            mavenLocalRepo: '.repository', // use dedicated Maven repository as long as proper locking is not supported, https://lists.apache.org/thread/yovswz70v3f4d2b5ofyoqymvg9lbmzrg
             options: [
                 artifactsPublisher(disabled: !isReferenceStage),
                 junitPublisher(disabled: !isReferenceStage),
@@ -171,31 +172,34 @@ def defineStage(def globalConfig, def jobConfig, def jdkVersion, boolean isRefer
         }
         if ( isReferenceStage && goal == "deploy" && shouldDeploy ) {
             // Stash the build results from the local deployment directory so we can deploy them on another node
-            stash name: 'local-snapshots-dir', includes: 'local-snapshots-dir/**'
+            stash name: 'local-snapshots-dir', includes: 'target/local-snapshots-dir/**'
         }
     }
     
     def branchConfig = jobConfig?.branches?."$env.BRANCH_NAME" ?: [:]
 
     return {
-        wrapInNode(branchConfig.nodeLabel ?: globalConfig.mainNodeLabel, {
-            timeout(time: 30, unit: 'MINUTES') {
-                stage("Maven Build (Java ${jdkVersion}, ${goal})") {
-                    echo "Running on node ${env.NODE_NAME}"
-                    invocation.call()
+        node(branchConfig.nodeLabel ?: globalConfig.mainNodeLabel) {
+            dir(jenkinsJdkLabel) { // isolate parallel builds on same node
+                timeout(time: 30, unit: 'MINUTES') {
+                    checkout scm
+                    stage("Maven Build (Java ${jdkVersion}, ${goal})") {
+                        echo "Running on node ${env.NODE_NAME}"
+                        invocation.call()
+                    }
                 }
-            }
-            if ( isReferenceStage ) {
-                // SonarQube must be executed on the same node in order to reuse artifact from the Maven build
-                if ( jobConfig.sonarQubeEnabled ) {
-                    stage('Analyse with SonarCloud') {
-                        timeout(time: 30, unit: 'MINUTES') {
-                            analyseWithSonarCloud(globalConfig, jobConfig)
+                if ( isReferenceStage ) {
+                    // SonarQube must be executed on the same node in order to reuse artifact from the Maven build
+                    if ( jobConfig.sonarQubeEnabled ) {
+                        stage('Analyse with SonarCloud') {
+                            timeout(time: 30, unit: 'MINUTES') {
+                                analyseWithSonarCloud(globalConfig, jobConfig)
+                            }
                         }
                     }
                 }
             }
-        })
+        }
     }
 }
 
@@ -250,7 +254,7 @@ def deployToNexus(def globalConfig) {
             unstash name: 'local-snapshots-dir'
             // https://www.mojohaus.org/wagon-maven-plugin/merge-maven-repos-mojo.html
             static final String WAGON_PLUGIN_GAV = "org.codehaus.mojo:wagon-maven-plugin:2.0.2"
-            String mavenArguments = "${WAGON_PLUGIN_GAV}:merge-maven-repos -Dwagon.target=https://repository.apache.org/content/repositories/snapshots -Dwagon.targetId=apache.snapshots.https -Dwagon.source=file:${env.WORKSPACE}/local-snapshots-dir"
+            String mavenArguments = "${WAGON_PLUGIN_GAV}:merge-maven-repos -Dwagon.target=https://repository.apache.org/content/repositories/snapshots -Dwagon.targetId=apache.snapshots.https -Dwagon.source=file:${env.WORKSPACE}/target/local-snapshots-dir"
             withMaven(maven: globalConfig.mvnVersion,
                      jdk: jenkinsJdkLabel(11, globalConfig),
                      publisherStrategy: 'EXPLICIT') {
@@ -277,13 +281,4 @@ boolean getShouldDeploy() {
 
 boolean isOnMainBranch() {
     return env.BRANCH_NAME == 'master'
-}
-
-def wrapInNode(def nodeLabel, Closure invocation) {
-    return {
-        node(nodeLabel) {
-            checkout scm
-            invocation.call()
-        }
-    }
 }
