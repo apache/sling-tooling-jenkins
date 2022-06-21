@@ -142,14 +142,18 @@ def defineStage(def globalConfig, def jobConfig, def jdkVersion, boolean isRefer
     }
 
     def invocation = {
-        if ( isReferenceStage && goal == "deploy" && shouldDeploy ) {
-            String localRepoPath = "${env.WORKSPACE}/local-snapshots-dir"
-            // Make sure the directory is wiped.
-            dir(localRepoPath) {
-                deleteDir()
+        if ( isReferenceStage ) {
+            if ( goal == "deploy" && shouldDeploy ) {
+                String localRepoPath = "${env.WORKSPACE}/local-snapshots-dir"
+                // Make sure the directory is wiped.
+                dir(localRepoPath) {
+                    deleteDir()
+                }
+                // deploy to local directory (all artifacts from a reactor) 
+                additionalMavenParams = "${additionalMavenParams} -DaltDeploymentRepository=snapshot-repo::default::file:${localRepoPath}"
             }
-            // deploy to local directory (all artifacts from a reactor)
-            additionalMavenParams = "${additionalMavenParams} -DaltDeploymentRepository=snapshot-repo::default::file:${localRepoPath}"
+            // calculate coverage with jacoco (for subsequent evaluation by SonarQube)
+            additionalMavenParams = "${additionalMavenParams} -Pjacoco-report"
         }
         checkout scm
         withMaven(maven: globalConfig.mvnVersion, jdk: jenkinsJdkLabel,
@@ -204,7 +208,7 @@ def analyseWithSonarCloud(def globalConfig, def jobConfig) {
     def isPrBuild = env.BRANCH_NAME.startsWith("PR-")
 
     // As we don't have the global SonarCloud conf for now, we can't use #withSonarQubeEnv so we need to set the following props manually
-    def sonarcloudParams="-Dsonar.host.url=https://sonarcloud.io -Dsonar.organization=apache -Dsonar.projectKey=apache_${jobConfig.repoName} -Pjacoco-report -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco-merged/jacoco.xml ${jobConfig.sonarQubeAdditionalParams}"
+    def sonarcloudParams="-Dsonar.host.url=https://sonarcloud.io -Dsonar.organization=apache -Dsonar.projectKey=apache_${jobConfig.repoName} -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco-merged/jacoco.xml ${jobConfig.sonarQubeAdditionalParams}"
     if ( jobConfig.sonarQubeUseAdditionalMavenParams ) {
         sonarcloudParams="${sonarcloudParams} ${additionalMavenParams}"
     }
