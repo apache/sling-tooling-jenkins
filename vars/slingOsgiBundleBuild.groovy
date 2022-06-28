@@ -172,8 +172,10 @@ def defineStage(def globalConfig, def jobConfig, def jdkVersion, boolean isRefer
             archiveArtifacts(artifacts: SlingJenkinsHelper.jsonArrayToCsv(jobConfig.archivePatterns), allowEmptyArchive: true)
         }
         if ( isReferenceStage && goal == "deploy" && shouldDeploy ) {
+            echo "trying to stash in ${pwd()}"
             // Stash the build results from the local deployment directory so we can deploy them on another node
             stash name: 'local-snapshots-dir', includes: 'target/local-snapshots-dir/**'
+            echo "successfully stashed in ${pwd()}"
         }
     }
     
