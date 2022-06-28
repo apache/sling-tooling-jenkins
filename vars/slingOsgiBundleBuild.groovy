@@ -251,10 +251,8 @@ def deployToNexus(def globalConfig) {
             deleteDir()
             // Nexus deployment needs pom.xml
             checkout scm
-            dir('target') {
-                // Unstash the previously stashed build results.
-                unstash name: 'local-snapshots-dir'
-            }
+            // Unstash the previously stashed build results.
+            unstash name: 'local-snapshots-dir'
             // https://www.mojohaus.org/wagon-maven-plugin/merge-maven-repos-mojo.html
             static final String WAGON_PLUGIN_GAV = "org.codehaus.mojo:wagon-maven-plugin:2.0.2"
             String mavenArguments = "${WAGON_PLUGIN_GAV}:merge-maven-repos -Dwagon.target=https://repository.apache.org/content/repositories/snapshots -Dwagon.targetId=apache.snapshots.https -Dwagon.source=file:${pwd()}/local-snapshots-dir"
