@@ -144,7 +144,8 @@ def defineStage(def globalConfig, def jobConfig, def jdkVersion, boolean isRefer
     def invocation = {
         if ( isReferenceStage ) {
             if ( goal == "deploy" && shouldDeploy ) {
-                String localRepoPath = "${env.WORKSPACE}/target/local-snapshots-dir"
+                // this must be an absolute path to always refer to the same directory (for each Maven module in a reactor)
+                String localRepoPath = "${pwd()}/target/local-snapshots-dir"
                 // Make sure the directory is wiped.
                 dir(localRepoPath) {
                     deleteDir()
