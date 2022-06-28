@@ -172,10 +172,12 @@ def defineStage(def globalConfig, def jobConfig, def jdkVersion, boolean isRefer
             archiveArtifacts(artifacts: SlingJenkinsHelper.jsonArrayToCsv(jobConfig.archivePatterns), allowEmptyArchive: true)
         }
         if ( isReferenceStage && goal == "deploy" && shouldDeploy ) {
-            echo "trying to stash in ${pwd()}"
-            // Stash the build results from the local deployment directory so we can deploy them on another node
-            stash name: 'local-snapshots-dir', includes: 'target/local-snapshots-dir/**'
-            echo "successfully stashed in ${pwd()}"
+            dir("target") {
+                echo "trying to stash in ${pwd()}"
+                // Stash the build results from the local deployment directory so we can deploy them on another node
+                stash name: 'local-snapshots-dir', includes: 'local-snapshots-dir/**'
+                echo "successfully stashed in ${pwd()}"
+            }
         }
     }
     
@@ -253,8 +255,10 @@ def deployToNexus(def globalConfig) {
             deleteDir()
             // Nexus deployment needs pom.xml
             checkout scm
-            // Unstash the previously stashed build results.
-            unstash name: 'local-snapshots-dir'
+            dir('target') {
+                // Unstash the previously stashed build results.
+                unstash name: 'local-snapshots-dir'
+            }
             // https://www.mojohaus.org/wagon-maven-plugin/merge-maven-repos-mojo.html
             static final String WAGON_PLUGIN_GAV = "org.codehaus.mojo:wagon-maven-plugin:2.0.2"
             String mavenArguments = "${WAGON_PLUGIN_GAV}:merge-maven-repos -Dwagon.target=https://repository.apache.org/content/repositories/snapshots -Dwagon.targetId=apache.snapshots.https -Dwagon.source=file:${env.WORKSPACE}/target/local-snapshots-dir"
