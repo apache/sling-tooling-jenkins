@@ -70,7 +70,7 @@ def call(Map params = [:]) {
             boolean isReferenceStage = true
 
             // contains the label as key and a closure to execute as value
-            def stepsMap = [:]
+            def stepsMap = [failFast: true] // fail-fast, https://stackoverflow.com/a/37356318
             def referenceJdkVersion
             // parallel execution of all build jobs
             jobConfig.jdks.each { jdkVersion -> 
