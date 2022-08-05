@@ -91,7 +91,7 @@ def call(Map params = [:]) {
                         withMaven(maven: globalConfig.mvnVersion,
                             jdk: jenkinsJdkLabel(referenceJdkVersion, globalConfig),
                             publisherStrategy: 'EXPLICIT') {
-                                sh "mvn clean compile ${additionalMavenParams(jobConfig)}"
+                                sh "mvn -U clean compile ${additionalMavenParams(jobConfig)}"
                         }
                     }
                 }
