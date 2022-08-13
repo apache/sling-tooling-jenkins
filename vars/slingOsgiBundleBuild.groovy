@@ -87,6 +87,7 @@ def call(Map params = [:]) {
             if ( stepsMap.size() > 1 ) {
                 node(globalConfig.mainNodeLabel) {
                     stage("Sanity Check") {
+                        deleteDir() // first clear workspace
                         checkout scm
                         withMaven(maven: globalConfig.mvnVersion,
                             jdk: jenkinsJdkLabel(referenceJdkVersion, globalConfig),
@@ -182,6 +183,7 @@ def defineStage(def globalConfig, def jobConfig, def jdkVersion, boolean isRefer
     return {
         node(branchConfig.nodeLabel ?: globalConfig.mainNodeLabel) {
             dir(jenkinsJdkLabel) { // isolate parallel builds on same node
+                deleteDir() // first clear workspace
                 timeout(time: 30, unit: 'MINUTES') {
                     checkout scm
                     stage("Maven Build (Java ${jdkVersion}, ${goal})") {
