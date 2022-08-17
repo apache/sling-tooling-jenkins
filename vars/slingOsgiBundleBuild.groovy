@@ -145,7 +145,7 @@ def defineStage(def globalConfig, def jobConfig, def jdkVersion, boolean isRefer
         if ( isReferenceStage ) {
             if ( goal == "deploy" && shouldDeploy ) {
                 // this must be an absolute path to always refer to the same directory (for each Maven module in a reactor)
-                String localRepoPath = "${pwd()}/local-snapshots-dir" // must also be outside target, as target is cleaned too late
+                String localRepoPath = "${pwd()}/.local-snapshots-dir" // must also be outside target, as target is cleaned too late
                 // Make sure the directory is wiped.
                 dir(localRepoPath) {
                     deleteDir()
@@ -173,7 +173,7 @@ def defineStage(def globalConfig, def jobConfig, def jdkVersion, boolean isRefer
         }
         if ( isReferenceStage && goal == 'deploy' && shouldDeploy ) {
             // Stash the build results from the local deployment directory so we can deploy them on another node
-            stash name: 'local-snapshots-dir', includes: 'local-snapshots-dir/**'
+            stash name: 'local-snapshots-dir', includes: '.local-snapshots-dir/**'
         }
     }
     
@@ -255,7 +255,7 @@ def deployToNexus(def globalConfig) {
             unstash name: 'local-snapshots-dir'
             // https://www.mojohaus.org/wagon-maven-plugin/merge-maven-repos-mojo.html
             static final String WAGON_PLUGIN_GAV = "org.codehaus.mojo:wagon-maven-plugin:2.0.2"
-            String mavenArguments = "${WAGON_PLUGIN_GAV}:merge-maven-repos -Dwagon.target=https://repository.apache.org/content/repositories/snapshots -Dwagon.targetId=apache.snapshots.https -Dwagon.source=file:${pwd()}/local-snapshots-dir"
+            String mavenArguments = "${WAGON_PLUGIN_GAV}:merge-maven-repos -Dwagon.target=https://repository.apache.org/content/repositories/snapshots -Dwagon.targetId=apache.snapshots.https -Dwagon.source=file:${pwd()}/.local-snapshots-dir"
             withMaven(maven: globalConfig.mvnVersion,
                      jdk: jenkinsJdkLabel(11, globalConfig),
                      publisherStrategy: 'EXPLICIT') {
