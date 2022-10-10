@@ -3,14 +3,18 @@ import org.apache.sling.jenkins.SlingJenkinsHelper;
 def call(Map params = [:]) {
 
     def globalConfig = [
-        availableJDKs : [ 8: 'jdk_1.8_latest', 9: 'jdk_1.9_latest', 10: 'jdk_10_latest', 11: 'jdk_11_latest', 12: 'jdk_12_latest', 13: 'jdk_13_latest', 14: 'jdk_14_latest', 15: 'jdk_15_latest', 16: 'jdk_16_latest', 17: 'jdk_17_latest', 18: 'jdk_18_latest'],
+        availableJDKs : [ 8: 'jdk_1.8_latest', 9: 'jdk_1.9_latest', 10: 'jdk_10_latest', 11: 'jdk_11_latest',
+                          12: 'jdk_12_latest', 13: 'jdk_13_latest', 14: 'jdk_14_latest', 15: 'jdk_15_latest',
+                          16: 'jdk_16_latest', 17: 'jdk_17_latest', 18: 'jdk_18_latest', 19: 'jdk_19_latest'],
         mvnVersion : 'maven_3_latest',
-        mainNodeLabel : 'ubuntu',
+        // maps values to node labels (available ones in https://cwiki.apache.org/confluence/display/INFRA/ci-builds.apache.org)
+        availableOperatingSystems : ['windows' : 'Windows', 'linux': 'ubuntu', 'linux-arm': 'arm', 'ubuntu': 'ubuntu'],
         githubCredentialsId: 'sling-github-token'
     ]
 
     def jobConfig = [
         jdks: [8],
+        operatingSystems: ['linux'],
         upstreamProjects: [],
         archivePatterns: [],
         mavenGoal: '',
@@ -27,8 +31,14 @@ def call(Map params = [:]) {
         timeout(time:5, unit: 'MINUTES') {
             stage('Init') {
                 checkout scm
-                sh "git clean -fdx"
-                def url = sh(returnStdout: true, script: 'git config remote.origin.url').trim()
+                def url
+                if (isUnix()) {
+                    sh "git clean -fdx"
+                    url = sh(returnStdout: true, script: 'git config remote.origin.url').trim()
+                } else {
+                    bat "git clean -fdx"
+                    url = bat(returnStdout: true, script: 'git config remote.origin.url').trim()
+                }
                 jobConfig.repoName = url.substring(url.lastIndexOf('/') + 1).replace('.git', '');
                 if ( fileExists('.sling-module.json') ) {
                     overrides = readJSON file: '.sling-module.json'
@@ -74,13 +84,15 @@ def call(Map params = [:]) {
             def referenceJdkVersion
             // parallel execution of all build jobs
             jobConfig.jdks.each { jdkVersion -> 
-                stageDefinition = defineStage(globalConfig, jobConfig, jdkVersion, isReferenceStage, shouldDeploy)
-                if ( isReferenceStage ) {
-                    referenceJdkVersion = jdkVersion
+                jobConfig.operatingSystems.each { operatingSystem ->
+                    stageDefinition = defineStage(globalConfig, jobConfig, jdkVersion, operatingSystem, isReferenceStage, shouldDeploy)
+                    if ( isReferenceStage ) {
+                        referenceJdkVersion = jdkVersion
+                    }
+                    stepsMap["Build (Java ${jdkVersion} on ${operatingSystem})"] = stageDefinition
+                    isReferenceStage = false
+                    currentBuild.result = "SUCCESS"
                 }
-                stepsMap["Build (Java ${jdkVersion})"] = stageDefinition
-                isReferenceStage = false
-                currentBuild.result = "SUCCESS"
             }
 
             // do a quick sanity check first without tests if multiple parallel builds are required
@@ -91,8 +103,13 @@ def call(Map params = [:]) {
                         withMaven(maven: globalConfig.mvnVersion,
                             jdk: jenkinsJdkLabel(referenceJdkVersion, globalConfig),
                             publisherStrategy: 'EXPLICIT') {
-                                sh "mvn -U clean compile ${additionalMavenParams(jobConfig)}"
-                        }
+                                String mvnCommand = "mvn -U -B -e clean compile ${additionalMavenParams(jobConfig)}"
+                                if (isUnix()) {
+                                    sh mvnCommand
+                                } else {
+                                    bat mvnCommand
+                                }
+                            }
                     }
                 }
             }
@@ -122,13 +139,27 @@ def jenkinsJdkLabel(int jdkVersion, def globalConfig) {
     return label
 }
 
+def jenkinsNodeLabel(String operatingSystem, def jobConfig, def globalConfig) {
+    def branchConfig = jobConfig?.branches?."$env.BRANCH_NAME" ?: [:]
+    if ( branchConfig.nodeLabel ) {
+        echo "Using branch specific node label ${branchConfig.nodeLabel}"
+        return branchConfig.nodeLabel
+    } else {
+        def label = globalConfig.availableOperatingSystems[operatingSystem]
+        if ( !label )
+            error("Unknown operating system ${operatingSystem}. Available operating systems: ${globalConfig.availableOperatingSystems}")
+        echo "Using operating-system ${operatingSystem} specific node label ${label}"
+        return label
+    }
+}
+
 def additionalMavenParams(def jobConfig) {
     def branchConfig = jobConfig?.branches?."$env.BRANCH_NAME" ?: [:]
     return branchConfig.additionalMavenParams ?
         branchConfig.additionalMavenParams : jobConfig.additionalMavenParams
 }
 
-def defineStage(def globalConfig, def jobConfig, def jdkVersion, boolean isReferenceStage, boolean shouldDeploy) {
+def defineStage(def globalConfig, def jobConfig, def jdkVersion, def operatingSystem, boolean isReferenceStage, boolean shouldDeploy) {
 
     def goal = jobConfig.mavenGoal ? jobConfig.mavenGoal : ( isReferenceStage ? "deploy" : "verify" )
     def additionalMavenParams = additionalMavenParams(jobConfig)
@@ -165,8 +196,12 @@ def defineStage(def globalConfig, def jobConfig, def jdkVersion, boolean isRefer
                 openTasksPublisher(disabled: !isReferenceStage),
                 dependenciesFingerprintPublisher(disabled: !isReferenceStage)
             ] ) {
-
-            sh "mvn -U clean ${goal} ${additionalMavenParams} -Dci"
+            String mvnCommand = "mvn -U -B -e clean ${goal} ${additionalMavenParams} -Dci"
+            if (isUnix()) {
+                sh mvnCommand
+            } else {
+                bat mvnCommand
+            }
         }
         if ( isReferenceStage && jobConfig.archivePatterns ) {
             archiveArtifacts(artifacts: SlingJenkinsHelper.jsonArrayToCsv(jobConfig.archivePatterns), allowEmptyArchive: true)
@@ -177,10 +212,9 @@ def defineStage(def globalConfig, def jobConfig, def jdkVersion, boolean isRefer
         }
     }
     
-    def branchConfig = jobConfig?.branches?."$env.BRANCH_NAME" ?: [:]
-
+    def jenkinsNodeLabel = jenkinsNodeLabel(operatingSystem, jobConfig, globalConfig)
     return {
-        node(branchConfig.nodeLabel ?: globalConfig.mainNodeLabel) {
+        node(jenkinsNodeLabel) {
             dir(jenkinsJdkLabel) { // isolate parallel builds on same node
                 timeout(time: 30, unit: 'MINUTES') {
                     checkout scm
@@ -232,7 +266,12 @@ def analyseWithSonarCloud(def globalConfig, def jobConfig) {
             jdk: jenkinsJdkLabel(11, globalConfig),
             publisherStrategy: 'EXPLICIT') {
                 try {
-                     sh  "mvn ${SONAR_PLUGIN_GAV}:sonar ${sonarcloudParams}"
+                    String mvnCommand = "mvn -B -e ${SONAR_PLUGIN_GAV}:sonar ${sonarcloudParams}"
+                    if (isUnix()) {
+                        sh mvnCommand
+                    } else {
+                        bat mvnCommand
+                    }
                 } catch ( Exception e ) {
                     // TODO - we should check the actual failure cause here, but see
                     // https://stackoverflow.com/questions/55742773/get-the-cause-of-a-maven-build-failure-inside-a-jenkins-pipeline/55744122
@@ -259,7 +298,12 @@ def deployToNexus(def globalConfig) {
             withMaven(maven: globalConfig.mvnVersion,
                      jdk: jenkinsJdkLabel(11, globalConfig),
                      publisherStrategy: 'EXPLICIT') {
-                        sh "mvn ${mavenArguments}"
+                         String mvnCommand = "mvn ${mavenArguments}"
+                         if (isUnix()) {
+                             sh mvnCommand
+                         } else {
+                             bat mvnCommand
+                         }
             }
         }
     }
