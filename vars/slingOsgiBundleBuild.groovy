@@ -9,6 +9,7 @@ def call(Map params = [:]) {
         mvnVersion : 'maven_3_latest',
         // maps values to node labels (available ones in https://cwiki.apache.org/confluence/display/INFRA/ci-builds.apache.org)
         availableOperatingSystems : ['windows' : 'Windows', 'linux': 'ubuntu', 'linux-arm': 'arm', 'ubuntu': 'ubuntu'],
+        mainNodeLabel : 'ubuntu',
         githubCredentialsId: 'sling-github-token'
     ]
 
