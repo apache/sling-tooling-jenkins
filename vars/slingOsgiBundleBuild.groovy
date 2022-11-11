@@ -119,25 +119,33 @@ def call(Map params = [:]) {
             // execute the actual Maven builds
             parallel stepsMap
 
+            def starterITsMap = [:]
+
+            // define the starter its executions
             jobConfig.starterITExecutions.each { starterVersion, starterITExecution ->
                 starterITExecution.jdks.each { jdkVersion ->
-                    node(globalConfig.mainNodeLabel) { // TODO - support node overrides
-                        stage("Starter ITs (${starterVersion}, Java ${jdkVersion})") {
-                            checkout scm
-                            withMaven(maven: globalConfig.mvnVersion,
-                                jdk: jenkinsJdkLabel(referenceJdkVersion, globalConfig),
-                                publisherStrategy: 'EXPLICIT') {
-                                    String mvnCommand = "mvn -U -B -e clean verify -Dstarter-its.starter.version=${starterVersion}"
-                                    if (isUnix()) {
-                                        sh mvnCommand
-                                    } else {
-                                        bat mvnCommand
+                    starterITsMap["Starter ITs (${starterVersion}, Java ${jdkVersion})"] = {
+                        node(globalConfig.mainNodeLabel) { // TODO - support node overrides
+                            stage("Starter ITs (${starterVersion}, Java ${jdkVersion})") {
+                                checkout scm
+                                withMaven(maven: globalConfig.mvnVersion,
+                                    jdk: jenkinsJdkLabel(referenceJdkVersion, globalConfig),
+                                    publisherStrategy: 'EXPLICIT') {
+                                        String mvnCommand = "mvn -U -B -e clean verify -Dstarter-its.starter.version=${starterVersion}"
+                                        if (isUnix()) {
+                                            sh mvnCommand
+                                        } else {
+                                            bat mvnCommand
+                                        }
                                     }
-                                }
+                            }
                         }
                     }
                 }
             }
+
+            // execute the starter ITs
+            parallel starterITsMap
 
             // last stage is deploy
             def goal = jobConfig.mavenGoal ?: "deploy"
