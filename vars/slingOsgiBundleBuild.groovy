@@ -121,7 +121,7 @@ def call(Map params = [:]) {
 
             starterITExecutions.each { starterVersion, starterITExecution ->
                 starterITExecution.jdks.each {
-                    jdkVersion -> {
+                    jdkVersion ->
                         stage("Starter ITs (Starter ${starterVersion}, Java ${jdkVersion}") {
                             checkout scm
                             withMaven(maven: globalConfig.mvnVersion,
