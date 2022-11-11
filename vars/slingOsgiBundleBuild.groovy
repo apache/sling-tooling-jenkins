@@ -119,7 +119,7 @@ def call(Map params = [:]) {
             // execute the actual Maven builds
             parallel stepsMap
 
-            starterITExecutions.each { starterVersion, starterITExecution ->
+            jobConfig.starterITExecutions.each { starterVersion, starterITExecution ->
                 starterITExecution.jdks.each { jdkVersion ->
                         stage("Starter ITs (Starter ${starterVersion}, Java ${jdkVersion}") {
                             checkout scm
