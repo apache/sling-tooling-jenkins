@@ -121,6 +121,7 @@ def call(Map params = [:]) {
 
             jobConfig.starterITExecutions.each { starterVersion, starterITExecution ->
                 starterITExecution.jdks.each { jdkVersion ->
+                    node(globalConfig.mainNodeLabel) { // TODO - support node overrides
                         stage("Starter ITs (Starter ${starterVersion}, Java ${jdkVersion}") {
                             checkout scm
                             withMaven(maven: globalConfig.mvnVersion,
@@ -134,6 +135,7 @@ def call(Map params = [:]) {
                                     }
                                 }
                         }
+                    }
                 }
             }
 
