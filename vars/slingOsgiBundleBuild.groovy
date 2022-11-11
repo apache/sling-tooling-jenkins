@@ -122,12 +122,12 @@ def call(Map params = [:]) {
             jobConfig.starterITExecutions.each { starterVersion, starterITExecution ->
                 starterITExecution.jdks.each { jdkVersion ->
                     node(globalConfig.mainNodeLabel) { // TODO - support node overrides
-                        stage("Starter ITs (Starter ${starterVersion}, Java ${jdkVersion}") {
+                        stage("Starter ITs (${starterVersion}, Java ${jdkVersion})") {
                             checkout scm
                             withMaven(maven: globalConfig.mvnVersion,
                                 jdk: jenkinsJdkLabel(referenceJdkVersion, globalConfig),
                                 publisherStrategy: 'EXPLICIT') {
-                                    String mvnCommand = "mvn -U -B -e clean compile ${additionalMavenParams(jobConfig)}"
+                                    String mvnCommand = "mvn -U -B -e clean verify -Dstarter-its.starter.version=${starterVersion}"
                                     if (isUnix()) {
                                         sh mvnCommand
                                     } else {
