@@ -135,13 +135,15 @@ def call(Map params = [:]) {
                                         jdk: jenkinsJdkLabel(referenceJdkVersion, globalConfig),
                                         publisherStrategy: 'EXPLICIT') {
                                             String mvnCommand = "mvn -U -B -e clean verify -Dstarter-its.starter.version=${starterVersion}"
-                                            if (isUnix()) {
-                                                sh mvnCommand
-                                            } else {
-                                                bat mvnCommand
+                                            try {
+                                                if (isUnix()) {
+                                                    sh mvnCommand
+                                                } else {
+                                                    bat mvnCommand
+                                                }
+                                            } finally {
+                                                archiveArtifacts artifacts: 'target/**/*.log', allowEmptyArchive: true
                                             }
-
-                                            archiveArtifacts artifacts: 'target/**/*.log', allowEmptyArchive: true
                                         }
                                 }
                             }
