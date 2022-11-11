@@ -128,7 +128,7 @@ def call(Map params = [:]) {
                         // TODO - support node overrides
                         def jenkinsNodeLabel = jenkinsNodeLabel(globalConfig.mainNodeLabel, jobConfig, globalConfig)
                         node(jenkinsNodeLabel) {
-                            dir(jenkinsJdkLabel) { // isolate parallel builds on same node
+                            dir("${starterVersion}_${jdkVersion}") { // isolate parallel builds on same node
                                 stage("Starter ITs (${starterVersion}, Java ${jdkVersion})") {
                                     checkout scm
                                     withMaven(maven: globalConfig.mvnVersion,
