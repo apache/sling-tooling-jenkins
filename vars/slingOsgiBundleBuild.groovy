@@ -125,19 +125,23 @@ def call(Map params = [:]) {
             jobConfig.starterITExecutions.each { starterVersion, starterITExecution ->
                 starterITExecution.jdks.each { jdkVersion ->
                     starterITsMap["Starter ITs (${starterVersion}, Java ${jdkVersion})"] = {
-                        node(globalConfig.mainNodeLabel) { // TODO - support node overrides
-                            stage("Starter ITs (${starterVersion}, Java ${jdkVersion})") {
-                                checkout scm
-                                withMaven(maven: globalConfig.mvnVersion,
-                                    jdk: jenkinsJdkLabel(referenceJdkVersion, globalConfig),
-                                    publisherStrategy: 'EXPLICIT') {
-                                        String mvnCommand = "mvn -U -B -e clean verify -Dstarter-its.starter.version=${starterVersion}"
-                                        if (isUnix()) {
-                                            sh mvnCommand
-                                        } else {
-                                            bat mvnCommand
+                        // TODO - support node overrides
+                        def jenkinsNodeLabel = jenkinsNodeLabel(globalConfig.mainNodeLabel, jobConfig, globalConfig)
+                        node(jenkinsNodeLabel) {
+                            dir(jenkinsJdkLabel) { // isolate parallel builds on same node
+                                stage("Starter ITs (${starterVersion}, Java ${jdkVersion})") {
+                                    checkout scm
+                                    withMaven(maven: globalConfig.mvnVersion,
+                                        jdk: jenkinsJdkLabel(referenceJdkVersion, globalConfig),
+                                        publisherStrategy: 'EXPLICIT') {
+                                            String mvnCommand = "mvn -U -B -e clean verify -Dstarter-its.starter.version=${starterVersion}"
+                                            if (isUnix()) {
+                                                sh mvnCommand
+                                            } else {
+                                                bat mvnCommand
+                                            }
                                         }
-                                    }
+                                }
                             }
                         }
                     }
