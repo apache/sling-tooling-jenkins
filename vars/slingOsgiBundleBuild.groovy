@@ -120,22 +120,20 @@ def call(Map params = [:]) {
             parallel stepsMap
 
             starterITExecutions.each { starterVersion, starterITExecution ->
-                starterITExecution.jdks.each {
-                    jdkVersion ->
+                starterITExecution.jdks.each { jdkVersion ->
                         stage("Starter ITs (Starter ${starterVersion}, Java ${jdkVersion}") {
                             checkout scm
                             withMaven(maven: globalConfig.mvnVersion,
                                 jdk: jenkinsJdkLabel(referenceJdkVersion, globalConfig),
                                 publisherStrategy: 'EXPLICIT') {
-                                String mvnCommand = "mvn -U -B -e clean compile ${additionalMavenParams(jobConfig)}"
-                                if (isUnix()) {
-                                    sh mvnCommand
-                                } else {
-                                    bat mvnCommand
+                                    String mvnCommand = "mvn -U -B -e clean compile ${additionalMavenParams(jobConfig)}"
+                                    if (isUnix()) {
+                                        sh mvnCommand
+                                    } else {
+                                        bat mvnCommand
+                                    }
                                 }
-                            }
                         }
-                    }
                 }
             }
 
