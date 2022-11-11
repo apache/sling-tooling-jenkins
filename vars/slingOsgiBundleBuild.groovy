@@ -141,7 +141,7 @@ def call(Map params = [:]) {
                                                 bat mvnCommand
                                             }
 
-                                            archiveArtifacts artifacts: 'target/**/*.log', allowEmptyArchive: true,
+                                            archiveArtifacts artifacts: 'target/**/*.log', allowEmptyArchive: true
                                         }
                                 }
                             }
