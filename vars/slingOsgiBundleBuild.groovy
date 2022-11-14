@@ -98,7 +98,8 @@ def call(Map params = [:]) {
             }
 
             // do a quick sanity check first without tests if multiple parallel builds are required
-            if ( stepsMap.size() > 1 ) {
+            // the stepsMap has at least one entry due to the failFast entry
+            if ( stepsMap.size() > 2 ) {
                 node(globalConfig.mainNodeLabel) {
                     stage("Sanity Check") {
                         checkout scm
