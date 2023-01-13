@@ -135,7 +135,7 @@ def call(Map params = [:]) {
                                     withMaven(maven: globalConfig.mvnVersion,
                                         jdk: jenkinsJdkLabel(referenceJdkVersion, globalConfig),
                                         publisherStrategy: 'EXPLICIT') {
-                                            String mvnCommand = "mvn -U -B -e clean verify -Dtest='NoSuchTest$Certainly' -DfailIfNoTests=false -Dstarter-its.starter.version=${starterVersion} -Dstarter-its.startTimeoutSeconds=120"
+                                            String mvnCommand = "mvn -U -B -e clean verify -Dtest='NoSuchTest\$Certainly' -DfailIfNoTests=false -Dstarter-its.starter.version=${starterVersion} -Dstarter-its.startTimeoutSeconds=120"
                                             try {
                                                 if (isUnix()) {
                                                     sh mvnCommand
