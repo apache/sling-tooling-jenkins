@@ -14,8 +14,8 @@ def call(Map params = [:]) {
     ]
 
     def jobConfig = [
-        jdks: [8],
-        operatingSystems: ['linux'],
+        jdks: [11,17],
+        operatingSystems: ['linux','windows'],
         upstreamProjects: [],
         archivePatterns: [],
         mavenGoal: '',
