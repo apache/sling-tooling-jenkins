@@ -5,7 +5,8 @@ def call(Map params = [:]) {
     def globalConfig = [
         availableJDKs : [ 8: 'jdk_1.8_latest', 9: 'jdk_1.9_latest', 10: 'jdk_10_latest', 11: 'jdk_11_latest',
                           12: 'jdk_12_latest', 13: 'jdk_13_latest', 14: 'jdk_14_latest', 15: 'jdk_15_latest',
-                          16: 'jdk_16_latest', 17: 'jdk_17_latest', 18: 'jdk_18_latest', 19: 'jdk_19_latest'],
+                          16: 'jdk_16_latest', 17: 'jdk_17_latest', 18: 'jdk_18_latest', 19: 'jdk_19_latest', 
+                          20: 'jdk_20_latest', 21: 'jdk_21_latest', 22: 'jdk_22_latest'],
         mvnVersion : 'maven_3_latest',
         // maps values to node labels (available ones in https://cwiki.apache.org/confluence/display/INFRA/ci-builds.apache.org)
         availableOperatingSystems : ['windows' : 'Windows', 'linux': 'ubuntu', 'linux-arm': 'arm', 'ubuntu': 'ubuntu'],
