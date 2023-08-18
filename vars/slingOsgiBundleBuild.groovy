@@ -264,9 +264,9 @@ def analyseWithSonarCloud(def globalConfig, def jobConfig) {
     static final String SONAR_PLUGIN_GAV = 'org.sonarsource.scanner.maven:sonar-maven-plugin:3.9.1.2184'
     // Alls params are set, let's execute using #withCrendentials to hide and mask Robert's token
     withCredentials([string(credentialsId: 'sonarcloud-token-rombert', variable: 'SONAR_TOKEN')]) {
-        // always build with Java 11 (that is the minimum version supported: https://sonarcloud.io/documentation/appendices/end-of-support/)
+        // always build with Java 17 (that is the minimum version supported: https://docs.sonarcloud.io/appendices/scanner-environment/)
         withMaven(maven: globalConfig.mvnVersion,
-            jdk: jenkinsJdkLabel(11, globalConfig),
+            jdk: jenkinsJdkLabel(17, globalConfig),
             publisherStrategy: 'EXPLICIT') {
                 try {
                     String mvnCommand = "mvn -B -e ${SONAR_PLUGIN_GAV}:sonar ${sonarcloudParams}"
