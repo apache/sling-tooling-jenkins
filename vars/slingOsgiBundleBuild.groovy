@@ -164,6 +164,7 @@ def additionalMavenParams(def jobConfig) {
 
 def defineStage(def globalConfig, def jobConfig, def jdkVersion, def operatingSystem, boolean isReferenceStage, boolean shouldDeploy) {
 
+    def buildTimeout = jobConfig.buildTimeout ? jobConfig.buildTimeout : 30
     def goal = jobConfig.mavenGoal ? jobConfig.mavenGoal : ( isReferenceStage ? "deploy" : "verify" )
     def additionalMavenParams = additionalMavenParams(jobConfig)
     def jenkinsJdkLabel = jenkinsJdkLabel(jdkVersion, globalConfig)
@@ -219,7 +220,7 @@ def defineStage(def globalConfig, def jobConfig, def jdkVersion, def operatingSy
     return {
         node(jenkinsNodeLabel) {
             dir(jenkinsJdkLabel) { // isolate parallel builds on same node
-                timeout(time: 30, unit: 'MINUTES') {
+                timeout(time: buildTimeout, unit: 'MINUTES') {
                     checkout scm
                     stage("Maven Build (Java ${jdkVersion}, ${goal})") {
                         echo "Running on node ${env.NODE_NAME}"
@@ -230,7 +231,7 @@ def defineStage(def globalConfig, def jobConfig, def jdkVersion, def operatingSy
                     // SonarQube must be executed on the same node in order to reuse artifact from the Maven build
                     if ( jobConfig.sonarQubeEnabled ) {
                         stage('Analyse with SonarCloud') {
-                            timeout(time: 30, unit: 'MINUTES') {
+                            timeout(time: buildTimeout, unit: 'MINUTES') {
                                 analyseWithSonarCloud(globalConfig, jobConfig)
                             }
                         }
