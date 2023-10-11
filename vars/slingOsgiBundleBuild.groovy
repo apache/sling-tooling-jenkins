@@ -189,6 +189,8 @@ def defineStage(def globalConfig, def jobConfig, def jdkVersion, def operatingSy
             }
             // calculate coverage with jacoco (for subsequent evaluation by SonarQube)
             additionalMavenParams = "${additionalMavenParams} -Pjacoco-report"
+            // generate javadocs to detect illegal javadoc markup in sources
+            additionalMavenParams = "javadoc:javadoc ${additionalMavenParams}"
         }
         checkout scm
         withMaven(maven: globalConfig.mvnVersion, jdk: jenkinsJdkLabel,
