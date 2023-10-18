@@ -263,7 +263,7 @@ def analyseWithSonarCloud(def globalConfig, def jobConfig) {
     } else if ( isOnMainBranch() ) {
         sonarcloudParams="${sonarcloudParams} -Dsonar.branch.name=${BRANCH_NAME}"
     }
-    static final String SONAR_PLUGIN_GAV = 'org.sonarsource.scanner.maven:sonar-maven-plugin:3.9.1.2184'
+    static final String SONAR_PLUGIN_GAV = 'org.sonarsource.scanner.maven:sonar-maven-plugin:3.10.0.2594'
     // Alls params are set, let's execute using #withCrendentials to hide and mask Robert's token
     withCredentials([string(credentialsId: 'sonarcloud-token-rombert', variable: 'SONAR_TOKEN')]) {
         // always build with Java 17 (that is the minimum version supported: https://docs.sonarcloud.io/appendices/scanner-environment/)
