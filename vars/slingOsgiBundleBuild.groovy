@@ -13,7 +13,7 @@ def call(Map params = [:]) {
         // maps values to node labels (available ones in https://cwiki.apache.org/confluence/x/ViZ4CQ)
         availableOperatingSystems : ['windows' : 'Windows', 'linux': 'ubuntu', 'linux-arm': 'arm', 'ubuntu': 'ubuntu'],
         mainNodeLabel : 'ubuntu',
-        githubCredentialsId: 'sling-github-token-asf'
+        githubCredentialsId: 'sling-github-token'
     ]
 
     def jobConfig = [
