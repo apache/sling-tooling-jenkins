@@ -27,7 +27,8 @@ def call(Map params = [:]) {
         emailRecipients: [],
         sonarQubeEnabled: true,
         sonarQubeUseAdditionalMavenParams: true,
-        sonarQubeAdditionalParams: ''
+        sonarQubeAdditionalParams: '',
+        buildTimeout: 30 // default timeout in minutes
     ]
     boolean shouldDeploy = false
     node(globalConfig.mainNodeLabel) {
@@ -222,7 +223,7 @@ def defineStage(def globalConfig, def jobConfig, def jdkVersion, def operatingSy
     return {
         node(jenkinsNodeLabel) {
             dir(jenkinsJdkLabel) { // isolate parallel builds on same node
-                timeout(time: 30, unit: 'MINUTES') {
+                timeout(time: jobConfig.buildTimeout, unit: 'MINUTES') {
                     checkout scm
                     stage("Maven Build (Java ${jdkVersion}, ${goal})") {
                         echo "Running on node ${env.NODE_NAME}"
