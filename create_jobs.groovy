@@ -144,11 +144,11 @@ for more details</p>''')
             }
 
             // timeout if the job takes 4 times longer than the average
-            // duration of the last 3 jobs. Defaults to 30 minutes if
+            // duration of the last 3 jobs. Defaults to 60 minutes if
             // no previous job executions are found
             wrappers {
                 timeout {
-                    elastic(400, 3, 30)
+                    elastic(400, 3, 60)
                 }
 
                 if ( module.enableXvfb ) {
