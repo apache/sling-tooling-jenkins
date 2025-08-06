@@ -35,7 +35,7 @@ As changes to master are active immediately on all jobs, it is recommended to te
  * under the License.
  */
 
-@Library('sling@mybranch') _
+@Library('sling@mybranch')
 slingOsgiBundleBuild()
 
 ```
