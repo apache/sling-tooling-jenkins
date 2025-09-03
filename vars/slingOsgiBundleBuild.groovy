@@ -225,6 +225,9 @@ def defineStage(def globalConfig, def jobConfig, def jdkVersion, def operatingSy
             dir(jenkinsJdkLabel) { // isolate parallel builds on same node
                 timeout(time: jobConfig.buildTimeout, unit: 'MINUTES') {
                     checkout scm
+                    stage("Env cleanup") {
+                        cleanWs()
+                    }
                     stage("Maven Build (Java ${jdkVersion}, ${goal})") {
                         echo "Running on node ${env.NODE_NAME}"
                         invocation.call()
