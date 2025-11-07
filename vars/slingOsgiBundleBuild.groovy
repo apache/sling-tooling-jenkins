@@ -196,23 +196,27 @@ def defineStage(def globalConfig, def jobConfig, def jdkVersion, def operatingSy
             additionalMavenParams = "javadoc:javadoc ${additionalMavenParams}"
         }
         checkout scm
-        withMaven(maven: globalConfig.mvnVersion, jdk: jenkinsJdkLabel,
-            mavenLocalRepo: '.repository', // use dedicated Maven repository as long as proper locking is not supported, https://lists.apache.org/thread/yovswz70v3f4d2b5ofyoqymvg9lbmzrg
-            options: [
-                artifactsPublisher(disabled: !isReferenceStage),
-                junitPublisher(disabled: !isReferenceStage),
-                openTasksPublisher(disabled: !isReferenceStage),
-                dependenciesFingerprintPublisher(disabled: !isReferenceStage)
-            ] ) {
-            String mvnCommand = "mvn -U -B -e clean ${goal} ${additionalMavenParams} -Dci"
-            if (isUnix()) {
-                sh mvnCommand
-            } else {
-                bat mvnCommand
+        
+        try {
+            withMaven(maven: globalConfig.mvnVersion, jdk: jenkinsJdkLabel,
+                mavenLocalRepo: '.repository', // use dedicated Maven repository as long as proper locking is not supported, https://lists.apache.org/thread/yovswz70v3f4d2b5ofyoqymvg9lbmzrg
+                options: [
+                    artifactsPublisher(disabled: !isReferenceStage),
+                    junitPublisher(disabled: !isReferenceStage),
+                    openTasksPublisher(disabled: !isReferenceStage),
+                    dependenciesFingerprintPublisher(disabled: !isReferenceStage)
+                ] ) {
+                String mvnCommand = "mvn -U -B -e clean ${goal} ${additionalMavenParams} -Dci"
+                if (isUnix()) {
+                    sh mvnCommand
+                } else {
+                    bat mvnCommand
+                }
             }
-        }
-        if ( isReferenceStage && jobConfig.archivePatterns ) {
-            archiveArtifacts(artifacts: SlingJenkinsHelper.jsonArrayToCsv(jobConfig.archivePatterns), allowEmptyArchive: true)
+        } finally {
+            if ( jobConfig.archivePatterns ) {
+                archiveArtifacts(artifacts: SlingJenkinsHelper.jsonArrayToCsv(jobConfig.archivePatterns), allowEmptyArchive: true)
+            }
         }
         if ( isReferenceStage && goal == 'deploy' && shouldDeploy ) {
             // Stash the build results from the local deployment directory so we can deploy them on another node
