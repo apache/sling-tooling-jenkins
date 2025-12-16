@@ -109,7 +109,7 @@ def call(Map params = [:]) {
                         withMaven(maven: globalConfig.mvnVersion,
                             jdk: jenkinsJdkLabel(referenceJdkVersion, globalConfig),
                             publisherStrategy: 'EXPLICIT') {
-                                String mvnCommand = "mvn -U -B -e clean compile ${additionalMavenParams(jobConfig)}"
+                                String mvnCommand = "mvn --show-version -U -B -e clean compile ${additionalMavenParams(jobConfig)}"
                                 if (isUnix()) {
                                     sh mvnCommand
                                 } else {
@@ -204,7 +204,7 @@ def defineStage(def globalConfig, def jobConfig, def jdkVersion, def operatingSy
                 openTasksPublisher(disabled: !isReferenceStage),
                 dependenciesFingerprintPublisher(disabled: !isReferenceStage)
             ] ) {
-            String mvnCommand = "mvn -U -B -e clean ${goal} ${additionalMavenParams} -Dci"
+            String mvnCommand = "mvn --show-version -U -B -e clean ${goal} ${additionalMavenParams} -Dci"
             if (isUnix()) {
                 sh mvnCommand
             } else {
