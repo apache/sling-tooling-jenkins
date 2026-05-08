@@ -17,7 +17,7 @@ def call(Map params = [:]) {
     ]
 
     def jobConfig = [
-        jdks: [11,17,21],
+        jdks: [17,21],
         operatingSystems: ['linux','windows'],
         upstreamProjects: [],
         archivePatterns: [],
