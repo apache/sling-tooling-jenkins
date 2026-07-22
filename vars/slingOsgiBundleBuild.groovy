@@ -254,8 +254,9 @@ def analyseWithSonarCloud(def globalConfig, def jobConfig) {
     def additionalMavenParams = additionalMavenParams(jobConfig)
     def isPrBuild = env.BRANCH_NAME.startsWith("PR-")
 
+    // Always use the JRE from Maven for Sonarqube: https://docs.sonarsource.com/sonarqube-server/analyzing-source-code/scanners/scanner-environment/managing-jre-auto-provisioning#disabling-jre-auto-provisioning
     // As we don't have the global SonarCloud conf for now, we can't use #withSonarQubeEnv so we need to set the following props manually
-    def sonarcloudParams="-Dsonar.host.url=https://sonarcloud.io -Dsonar.organization=apache -Dsonar.projectKey=apache_${jobConfig.repoName} -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco-merged/jacoco.xml ${jobConfig.sonarQubeAdditionalParams}"
+    def sonarcloudParams="-Dsonar.scanner.skipJreProvisioning=true -Dsonar.host.url=https://sonarcloud.io -Dsonar.organization=apache -Dsonar.projectKey=apache_${jobConfig.repoName} -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco-merged/jacoco.xml ${jobConfig.sonarQubeAdditionalParams}"
     if ( jobConfig.sonarQubeUseAdditionalMavenParams ) {
         sonarcloudParams="${sonarcloudParams} ${additionalMavenParams}"
     }
@@ -266,12 +267,12 @@ def analyseWithSonarCloud(def globalConfig, def jobConfig) {
     } else if ( isOnMainBranch() ) {
         sonarcloudParams="${sonarcloudParams} -Dsonar.branch.name=${BRANCH_NAME}"
     }
-    static final String SONAR_PLUGIN_GAV = 'org.sonarsource.scanner.maven:sonar-maven-plugin:3.9.1.2184'
+    static final String SONAR_PLUGIN_GAV = 'org.sonarsource.scanner.maven:sonar-maven-plugin:5.7.0.6970'
     // Alls params are set, let's execute using #withCrendentials to hide and mask Robert's token
     withCredentials([string(credentialsId: 'sonarcloud-token-rombert', variable: 'SONAR_TOKEN')]) {
-        // always build with Java 17 (that is the minimum version supported: https://docs.sonarcloud.io/appendices/scanner-environment/)
+        // always build with Java 21 (that is the minimum version supported: https://docs.sonarsource.com/sonarqube-cloud/analyzing-source-code/scanners/scanner-environment/general-requirements)
         withMaven(maven: globalConfig.mvnVersion,
-            jdk: jenkinsJdkLabel(17, globalConfig),
+            jdk: jenkinsJdkLabel(21, globalConfig),
             publisherStrategy: 'EXPLICIT') {
                 try {
                     String mvnCommand = "mvn -B -e ${SONAR_PLUGIN_GAV}:sonar ${sonarcloudParams}"
