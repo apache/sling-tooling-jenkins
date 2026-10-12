@@ -80,8 +80,32 @@ These settings can be provided as library arguments or under `jenkins` in `.slin
 
 Provide either an input string or an input file; the library has no sample input by default and does not fetch logs from another Jenkins job. To supply live data, gather a small, sanitized summary in the dedicated job and pass it as `llmaoInput`. The library allocates its own node and checks out the project; `llmaoInputFile` must exist in that checked-out workspace. Input files are not deleted. Avoid sending secrets or large logs, and check the Models page for who can see your prompts.
 
-The request uses `https://llm.apache.org/v1/chat/completions` and reads `choices[0].message.content`. An exact `RETRY` is reported without retrying the normal project build; `FIX` or an ambiguous answer marks only the LLMAO job unstable. Empty answers and HTTP/network errors fail the LLMAO job. Generated request files are cleaned up, and raw prompts/responses are not archived or printed.
+The library runs [Pi](https://pi.dev) in Docker as a non-interactive LLM client. Pi is configured for LLMAO's OpenAI-compatible endpoint at `https://llm.apache.org/v1`, with the selected model and temperature `0.0`. The existing system prompt and input are passed to Pi, with tools, extensions, MCP, project instructions, stored sessions, automatic retries, and compaction disabled. Pi adds its own working-directory metadata to the system prompt; it cannot inspect the project checkout. Only its final text on stdout is captured as the analysis result.
 
-The `ubuntu` agent needs `curl` and a Unix shell. The job also requires the Jenkins Pipeline Utility Steps plugin (`writeJSON`/`readJSON`).
+An exact `RETRY` is reported without retrying the normal project build; `FIX` or an ambiguous answer marks only the LLMAO job unstable. Empty answers, Pi errors, HTTP/network errors, and timeouts fail the LLMAO job. Generated input/configuration files are cleaned up, and raw prompts/responses are not archived or printed.
 
-Offline routing, scheduling, configuration, response-handling, and cleanup checks can be run from the repository root with `groovy tests/llmao.groovy`. They stub Jenkins steps and HTTP responses, so they do not require credentials or call LLMAO. A real Jenkins run is still required to validate the Pipeline environment and gateway access.
+### Docker runtime
+
+The `ubuntu` agent needs a Unix shell and access to a **local Docker daemon**. The daemon must see the executor's temporary workspace at the same absolute path for the input bind mount; containerized executors must share that path with the Docker host. The job also requires the Jenkins Pipeline Utility Steps plugin (`writeJSON`/`readJSON`). No host Node.js, Pi installation, or Jenkins Docker Pipeline plugin is required.
+
+The library builds `sling-llmao-pi:1.1.0-node24-d6aa754f` from its [Dockerfile](resources/org/apache/sling/jenkins/llmao/Dockerfile), pinning the official `node:24-bookworm-slim` image by digest and the `@earendil-works/pi-coding-agent` package at version `1.1.0`. Docker's layer cache avoids reinstalling Pi on subsequent runs on that executor. The first uncached build needs access to Docker Hub and the npm registry; the running container needs access to `llm.apache.org`.
+
+Image building happens before credential binding and outside stdout capture. The container receives `LLMAO_PAT` from the Jenkins environment, not as a token value in its command line or configuration files. It runs as the Jenkins user's UID/GID, mounts only temporary input files read-only, and keeps its writable configuration in container-local `/tmp`. The Pi process is bounded to 120 seconds, with a five-second forced-termination grace period. Container removal is attempted on shell exit and again in the Pipeline's `finally` block, along with removal of the temporary files. No credentials or sessions are persisted in the image.
+
+### Testing
+
+Run offline checks from the repository root:
+
+```sh
+groovy tests/llmao.groovy
+python3 tests/pi-docker.py
+```
+
+These stub Jenkins steps and Docker/Pi output; they require no credentials or LLMAO access. To exercise the real Docker image and Pi CLI against a local mock OpenAI-compatible gateway:
+
+```sh
+docker build --tag sling-llmao-pi:1.1.0-node24-d6aa754f resources/org/apache/sling/jenkins/llmao
+python3 tests/pi-docker.py --integration
+```
+
+The integration test verifies environment-token authentication, model selection, prompt/input preservation, temperature, stdout, empty answers, HTTP errors, cancellation, and container removal. It does not call LLMAO. A real Jenkins run is still required to validate the Pipeline environment and gateway access.
