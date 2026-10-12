@@ -205,7 +205,7 @@ def runLlmaoOnlyBuild(def globalConfig, Map params) {
                 ).trim()
                 withEnv([
                     "LLMAO_CONTAINER=${containerName}",
-                    'LLMAO_IMAGE=sling-llmao-pi:1.1.0-maven21-99e61abc',
+                    'LLMAO_IMAGE=sling-llmao-pi:1.1.0-jdks8-21-v2',
                     "LLMAO_MODEL=${llmaoConfig.llmaoModel}",
                     "LLMAO_WORKSPACE=${projectWorkspace}"
                 ]) {
@@ -220,7 +220,7 @@ def runLlmaoOnlyBuild(def globalConfig, Map params) {
                             dir('inputs') {
                                 writeFile file: 'run-pi.sh', text: libraryResource('org/apache/sling/jenkins/llmao/run-pi.sh')
                                 writeFile file: 'tool-output-logger.mjs', text: libraryResource('org/apache/sling/jenkins/llmao/tool-output-logger.mjs')
-                                writeFile file: 'system-prompt.txt', text: 'You are a coding assistant working on the checked-out project. Follow the relevant supplied Apache Sling skills; use update-sling-parent-pom for parent POM upgrades. Complete the requested update and its required verification. Do not stage, unstage, commit, push, switch branches, or change Git metadata. Respond with exactly SUCCESS if the update and verification succeeded, or FAILURE otherwise. Do not include punctuation or explanation.', encoding: 'UTF-8'
+                                writeFile file: 'system-prompt.txt', text: 'You are a coding assistant working on the checked-out project. Follow the relevant supplied Apache Sling skills; use update-sling-parent-pom for parent POM upgrades. Complete the requested update and its required verification. Java 21 is the default; mvn8, mvn11, mvn17, and mvn21 run Maven with the corresponding JDK. Do not stage, unstage, commit, push, switch branches, or change Git metadata. Respond with exactly SUCCESS if the update and verification succeeded, or FAILURE otherwise. Do not include punctuation or explanation.', encoding: 'UTF-8'
                                 writeFile file: 'prompt_input.txt', text: contextData, encoding: 'UTF-8'
                                 writeJSON file: 'models.json', json: [
                                     providers: [llmao: [

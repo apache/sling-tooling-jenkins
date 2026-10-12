@@ -26,6 +26,7 @@ export PI_OFFLINE=1 PI_SKIP_VERSION_CHECK=1 PI_TELEMETRY=0
 export GIT_OPTIONAL_LOCKS=0
 export MAVEN_CONFIG="$HOME/.m2"
 export MAVEN_OPTS="-Duser.home=$HOME"
+export MAVEN_ARGS='-B -ntp'
 mkdir -p "$HOME" "$PI_CODING_AGENT_DIR"
 cp /inputs/models.json /inputs/settings.json "$PI_CODING_AGENT_DIR/"
 git config --global --add safe.directory /workspace
