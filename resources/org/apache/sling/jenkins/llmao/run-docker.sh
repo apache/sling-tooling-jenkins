@@ -48,7 +48,10 @@ if [ "$status" -eq 0 ] && [ "$result" = SUCCESS ]; then
 else
     echo FAILURE
     if [ "$status" -eq 0 ]; then
-        [ "$result" = FAILURE ] || echo 'Pi did not return exactly SUCCESS or FAILURE.' >&2
+        if [ "$result" != FAILURE ]; then
+            echo 'Pi did not return exactly SUCCESS or FAILURE.' >&2
+            printf 'Unexpected Pi response: <%s>\n' "$result" >&2
+        fi
         status=1
     fi
 fi
