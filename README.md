@@ -63,7 +63,7 @@ slingOsgiBundleBuild(
     llmaoOnly: true,
     llmaoRebuildFrequency: '', // Manual only; switch to '@weekly' for scheduling.
     llmaoModel: 'gemma4-26b',
-    llmaoInput: 'Update this project to the next parent pom verion and respond only with SUCCESS or FAILURE'
+    llmaoInput: 'Update this project to the most recent released parent POM version and respond only with SUCCESS or FAILURE'
 )
 ```
 
@@ -115,9 +115,9 @@ These are **observed token totals**, not billing records: interrupted requests a
 
 The `ubuntu` agent needs Bash, Git, and access to a **local Docker daemon**. The daemon must see the project and temporary workspaces at the same absolute paths for bind mounts; containerized executors must share those paths with the Docker host. The job also requires the Jenkins Pipeline Utility Steps plugin (`writeJSON`/`readJSON`). No host Node.js, Java, Maven, Pi installation, or Jenkins Docker Pipeline plugin is required.
 
-The library builds `sling-llmao-pi:1.1.0-jdks8-21-v2` from its [Dockerfile](resources/org/apache/sling/jenkins/llmao/Dockerfile), pinning the official Node 24, Maven/Temurin 21, and Temurin 8/11/17 images by digest and Pi at version `1.1.0`. The image includes JDKs 8, 11, 17, and 21, Maven 3.9.16, Git, curl, Python, ripgrep, and `fd` (Ubuntu's `fd-find` exposed under the name Pi expects). Release credentials are not included. Docker's layer cache avoids reinstalling tools on subsequent runs. An uncached build needs Docker Hub, npm, and Ubuntu package repositories; the running container needs LLMAO, GitHub, Maven repositories, and any documentation needed by the skill.
+The library builds `sling-llmao-pi:1.1.0-jdk21-v3` from its [Dockerfile](resources/org/apache/sling/jenkins/llmao/Dockerfile), pinning the official Node 24 and Maven/Temurin 21 images by digest and Pi at version `1.1.0`. The image includes only JDK 21, plus Maven 3.9.16, Git, curl, Python, ripgrep, and `fd` (Ubuntu's `fd-find` exposed under the name Pi expects). Release credentials are not included. Docker's layer cache avoids reinstalling tools on subsequent runs. An uncached build needs Docker Hub, npm, and Ubuntu package repositories; the running container needs LLMAO, GitHub, Maven repositories, and any documentation needed by the skill.
 
-Java 21 remains the default for `java` and `mvn`. The `mvn8`, `mvn11`, `mvn17`, and `mvn21` wrappers select the corresponding JDK through `JAVA_HOME` and `PATH` for that invocation only. Pi is told which wrappers are available and decides which JDK to use. `MAVEN_ARGS='-B -ntp'` applies batch mode and suppresses download-progress output for Maven and all wrappers, even when a skill invokes `mvn clean verify` without those flags.
+Java 21 is the only available JDK. Both `mvn` and the `mvn21` wrapper use it, and Pi is told to use these commands. No `mvn8`, `mvn11`, or `mvn17` wrappers are installed. `MAVEN_ARGS='-B -ntp'` applies batch mode and suppresses download-progress output for both Maven commands, even when a skill invokes `mvn clean verify` without those flags.
 
 Image building happens before credential binding. The container receives `LLMAO_PAT` from the Jenkins environment, not as a token value in its command line or configuration files. It runs as the Jenkins user's UID/GID with writable project and usage-report mounts and read-only `.git` and input mounts. Its private configuration, skills checkout, and Maven home/cache live in container-local `/tmp`; host credentials and the Docker socket are not mounted. The Pi process is bounded to 25 minutes within a 30-minute job timeout. Container removal is attempted on shell exit and again in the Pipeline's `finally` block, along with removal of the temporary input/configuration files.
 
@@ -135,8 +135,8 @@ python3 tests/pi-docker.py
 These stub Jenkins steps and Docker/Pi output; they require no credentials or LLMAO access. To exercise the real Docker image and Pi CLI against a local mock gateway and a fixture skills repository:
 
 ```sh
-docker build --tag sling-llmao-pi:1.1.0-jdks8-21-v2 resources/org/apache/sling/jenkins/llmao
+docker build --tag sling-llmao-pi:1.1.0-jdk21-v3 resources/org/apache/sling/jenkins/llmao
 python3 tests/pi-docker.py --integration
 ```
 
-The integration test exercises skill discovery/loading, real read/edit/write/find/shell tool calls, all four Maven/JDK wrappers, Maven batch-mode settings, environment-token authentication, model selection, tracked/new-file diffs, SUCCESS/FAILURE mapping, malformed/empty answers, API errors, multi-turn token/cache totals, retries, missing/zero usage, cancellation, and container removal. It uses only disposable fixture projects and does not call LLMAO or update the real project. A real Jenkins run is still required to validate gateway access, usage artifact publishing, and the actual parent-POM migration.
+The integration test exercises skill discovery/loading, real read/edit/write/find/shell tool calls, Java 21 with both Maven commands and the absence of older JDKs/wrappers, Maven batch-mode settings, environment-token authentication, model selection, tracked/new-file diffs, SUCCESS/FAILURE mapping, malformed/empty answers, API errors, multi-turn token/cache totals, retries, missing/zero usage, cancellation, and container removal. It uses only disposable fixture projects and does not call LLMAO or update the real project. A real Jenkins run is still required to validate gateway access, usage artifact publishing, and the actual parent-POM migration.
