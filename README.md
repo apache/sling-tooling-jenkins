@@ -95,6 +95,22 @@ Pi is instructed to respond only with `SUCCESS` after completing and verifying i
 
 The resulting Git diff is printed to stdout in the Jenkins build log, including partial changes on failure and new, non-ignored files without staging them. Project edits remain in the job workspace for inspection; no commit, push, or automatic recovery is performed. Generated input/configuration files are cleaned up, and sessions are not archived.
 
+### Per-build token usage
+
+LLMAO builds that reach the submission stage publish a console summary, add the observed total to their build description (for example, `LLMAO: SUCCESS | 18420 tokens`), and archive `llmao-usage.json`. Normal non-LLMAO builds are unaffected. No model prices or monetary cost estimates are configured.
+
+A dedicated Pi extension collects gateway-reported usage across all model responses, including tool-calling turns and any usage reported on failed or retried turns. The report contains:
+
+- `provider`, `model`, and Jenkins `build` metadata (`job`, `number`, and `url`).
+- `result` (`SUCCESS`, `FAILURE`, or `INCOMPLETE` when no process exit code was returned), `exitCode`, Pi `state`, and `aborted`.
+- `requests` (provider request attempts), `responsesWithUsage`, and `responsesWithoutUsage`. Counters are `null` and Pi state is `unknown` if the reporter could not produce a file.
+- `tokens`: `input` (uncached input), `output`, `cacheRead`, `cacheWrite`, and `total`. Cached input is counted separately, not added to input twice; reasoning tokens are already included in output.
+- `usageStatus`: `complete` if Pi settled without interruption and every response reported usage; `partial` if only some usage is available or the run was interrupted; `unavailable` if no valid usage was reported. `tokens` is `null` for unavailable usage, rather than a misleading zero. A gateway-reported zero remains zero.
+
+Usage is checkpointed atomically in a unique output directory outside the project checkout after each response. Jenkins stops the container before publishing and archiving the report, then cleans up the temporary report files. Reports are published on success and failure, and on cancellation where the Jenkins agent remains available. They contain counts and metadata only, not prompts, source content, reasoning, credentials, or session history.
+
+These are **observed token totals**, not billing records: interrupted requests and gateway errors may not return usage, so partial totals can undercount actual consumption. Failed requests without usage are not guessed to be free. Artifacts follow the job's existing ten-build retention policy; download the JSON reports before expiry if you need longer-term cost tracking.
+
 ### Docker runtime
 
 The `ubuntu` agent needs Bash, Git, and access to a **local Docker daemon**. The daemon must see the project and temporary workspaces at the same absolute paths for bind mounts; containerized executors must share those paths with the Docker host. The job also requires the Jenkins Pipeline Utility Steps plugin (`writeJSON`/`readJSON`). No host Node.js, Java, Maven, Pi installation, or Jenkins Docker Pipeline plugin is required.
@@ -103,7 +119,7 @@ The library builds `sling-llmao-pi:1.1.0-jdks8-21-v2` from its [Dockerfile](reso
 
 Java 21 remains the default for `java` and `mvn`. The `mvn8`, `mvn11`, `mvn17`, and `mvn21` wrappers select the corresponding JDK through `JAVA_HOME` and `PATH` for that invocation only. Pi is told which wrappers are available and decides which JDK to use. `MAVEN_ARGS='-B -ntp'` applies batch mode and suppresses download-progress output for Maven and all wrappers, even when a skill invokes `mvn clean verify` without those flags.
 
-Image building happens before credential binding. The container receives `LLMAO_PAT` from the Jenkins environment, not as a token value in its command line or configuration files. It runs as the Jenkins user's UID/GID with a writable project mount and read-only `.git` and input mounts. Its private configuration, skills checkout, and Maven home/cache live in container-local `/tmp`; host credentials and the Docker socket are not mounted. The Pi process is bounded to 25 minutes within a 30-minute job timeout. Container removal is attempted on shell exit and again in the Pipeline's `finally` block, along with removal of the temporary input/configuration files.
+Image building happens before credential binding. The container receives `LLMAO_PAT` from the Jenkins environment, not as a token value in its command line or configuration files. It runs as the Jenkins user's UID/GID with writable project and usage-report mounts and read-only `.git` and input mounts. Its private configuration, skills checkout, and Maven home/cache live in container-local `/tmp`; host credentials and the Docker socket are not mounted. The Pi process is bounded to 25 minutes within a 30-minute job timeout. Container removal is attempted on shell exit and again in the Pipeline's `finally` block, along with removal of the temporary input/configuration files.
 
 ### Testing
 
@@ -111,6 +127,8 @@ Run offline checks from the repository root:
 
 ```sh
 groovy tests/llmao.groovy
+node tests/tool-output-logger.mjs
+node tests/usage-reporter.mjs
 python3 tests/pi-docker.py
 ```
 
@@ -121,4 +139,4 @@ docker build --tag sling-llmao-pi:1.1.0-jdks8-21-v2 resources/org/apache/sling/j
 python3 tests/pi-docker.py --integration
 ```
 
-The integration test exercises skill discovery/loading, real read/edit/write/find/shell tool calls, all four Maven/JDK wrappers, Maven batch-mode settings, environment-token authentication, model selection, tracked/new-file diffs, SUCCESS/FAILURE mapping, malformed/empty answers, API errors, cancellation, and container removal. It uses only disposable fixture projects and does not call LLMAO or update the real project. A real Jenkins run is still required to validate gateway access and the actual parent-POM migration.
+The integration test exercises skill discovery/loading, real read/edit/write/find/shell tool calls, all four Maven/JDK wrappers, Maven batch-mode settings, environment-token authentication, model selection, tracked/new-file diffs, SUCCESS/FAILURE mapping, malformed/empty answers, API errors, multi-turn token/cache totals, retries, missing/zero usage, cancellation, and container removal. It uses only disposable fixture projects and does not call LLMAO or update the real project. A real Jenkins run is still required to validate gateway access, usage artifact publishing, and the actual parent-POM migration.

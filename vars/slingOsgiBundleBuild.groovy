@@ -203,11 +203,14 @@ def runLlmaoOnlyBuild(def globalConfig, Map params) {
                     script: 'printf "sling-llmao-%s" "$(cat /proc/sys/kernel/random/uuid)"',
                     returnStdout: true
                 ).trim()
+                // A unique directory prevents old usage from leaking into a new build.
+                def reportDirectory = "outputs/${containerName}"
                 withEnv([
                     "LLMAO_CONTAINER=${containerName}",
                     'LLMAO_IMAGE=sling-llmao-pi:1.1.0-jdks8-21-v2',
                     "LLMAO_MODEL=${llmaoConfig.llmaoModel}",
-                    "LLMAO_WORKSPACE=${projectWorkspace}"
+                    "LLMAO_WORKSPACE=${projectWorkspace}",
+                    "LLMAO_REPORT_DIR=${pwd()}/${reportDirectory}"
                 ]) {
                     try {
                         stage('Submit to LLMAO') {
@@ -220,6 +223,7 @@ def runLlmaoOnlyBuild(def globalConfig, Map params) {
                             dir('inputs') {
                                 writeFile file: 'run-pi.sh', text: libraryResource('org/apache/sling/jenkins/llmao/run-pi.sh')
                                 writeFile file: 'tool-output-logger.mjs', text: libraryResource('org/apache/sling/jenkins/llmao/tool-output-logger.mjs')
+                                writeFile file: 'usage-reporter.mjs', text: libraryResource('org/apache/sling/jenkins/llmao/usage-reporter.mjs')
                                 writeFile file: 'system-prompt.txt', text: 'You are a coding assistant working on the checked-out project. Follow the relevant supplied Apache Sling skills; use update-sling-parent-pom for parent POM upgrades. Complete the requested update and its required verification. Java 21 is the default; mvn8, mvn11, mvn17, and mvn21 run Maven with the corresponding JDK. Do not stage, unstage, commit, push, switch branches, or change Git metadata. Respond with exactly SUCCESS if the update and verification succeeded, or FAILURE otherwise. Do not include punctuation or explanation.', encoding: 'UTF-8'
                                 writeFile file: 'prompt_input.txt', text: contextData, encoding: 'UTF-8'
                                 writeJSON file: 'models.json', json: [
@@ -256,13 +260,25 @@ def runLlmaoOnlyBuild(def globalConfig, Map params) {
                             }
                         }
                     } finally {
-                        // Also clean up on Jenkins cancellation, not only normal Docker exit.
-                        sh '''
-                            set +x
-                            docker rm --force "$LLMAO_CONTAINER" >/dev/null 2>&1 || true
-                            rm -f image/Dockerfile inputs/models.json inputs/settings.json \\
-                              inputs/system-prompt.txt inputs/prompt_input.txt inputs/run-pi.sh inputs/tool-output-logger.mjs
-                        '''
+                        try {
+                            // Stop writes before archiving, including on Jenkins cancellation.
+                            sh '''
+                                set +x
+                                docker rm --force "$LLMAO_CONTAINER" >/dev/null 2>&1 || true
+                            '''
+                            dir(reportDirectory) {
+                                publishLlmaoUsage(llmaoConfig.llmaoModel, updateStatus)
+                            }
+                        } finally {
+                            sh '''
+                                set +x
+                                rm -f image/Dockerfile inputs/models.json inputs/settings.json \\
+                                  inputs/system-prompt.txt inputs/prompt_input.txt inputs/run-pi.sh \\
+                                  inputs/tool-output-logger.mjs inputs/usage-reporter.mjs
+                                rm -f "$LLMAO_REPORT_DIR/llmao-usage.json" "$LLMAO_REPORT_DIR/llmao-usage.json.tmp"
+                                rmdir "$LLMAO_REPORT_DIR" >/dev/null 2>&1 || true
+                            '''
+                        }
                     }
                 }
             }
@@ -270,14 +286,35 @@ def runLlmaoOnlyBuild(def globalConfig, Map params) {
             stage('Process LLMAO Response') {
                 if ( updateStatus == 0 ) {
                     echo 'Pi completed the project update successfully.'
-                    currentBuild.description = 'LLMAO: SUCCESS'
                 } else {
-                    currentBuild.description = 'LLMAO: FAILURE'
                     error("Pi could not complete the project update (exit code ${updateStatus}).")
                 }
             }
         }
     }
+}
+
+def publishLlmaoUsage(def model, def updateStatus) {
+    def report = fileExists('llmao-usage.json') ? readJSON(file: 'llmao-usage.json', returnPojo: true) : [
+        schemaVersion: 1, provider: 'llmao', model: model,
+        state: 'unknown', aborted: null, usageStatus: 'unavailable',
+        requests: null, responsesWithUsage: null, responsesWithoutUsage: null, tokens: null
+    ]
+    report.build = [job: env.JOB_NAME, number: env.BUILD_NUMBER, url: env.BUILD_URL]
+    report.result = updateStatus == null ? 'INCOMPLETE' : updateStatus == 0 ? 'SUCCESS' : 'FAILURE'
+    report.exitCode = updateStatus
+    def description = "LLMAO: ${report.result}"
+    if ( report.tokens != null ) {
+        def tokens = report.tokens
+        echo "LLMAO observed tokens: input=${tokens.input}, output=${tokens.output}, cacheRead=${tokens.cacheRead}, cacheWrite=${tokens.cacheWrite}, total=${tokens.total} (${report.usageStatus})."
+        description += " | ${tokens.total} tokens${report.usageStatus == 'partial' ? ' (partial)' : ''}"
+    } else {
+        echo 'LLMAO token usage unavailable; no gateway-reported usage was collected.'
+        description += ' | tokens unavailable'
+    }
+    currentBuild.description = description
+    writeJSON file: 'llmao-usage.json', json: report
+    archiveArtifacts artifacts: 'llmao-usage.json', allowEmptyArchive: false
 }
 
 def jenkinsJdkLabel(int jdkVersion, def globalConfig) {

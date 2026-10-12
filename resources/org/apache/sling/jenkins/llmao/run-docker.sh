@@ -31,12 +31,14 @@ if [ -n "$checkout_status" ]; then
 fi
 
 status=0
+mkdir -p "$LLMAO_REPORT_DIR"
 result=$(docker run --rm --init \
     --name "$LLMAO_CONTAINER" \
     --user "$(id -u):$(id -g)" \
     --read-only --tmpfs /tmp:rw,nosuid,nodev,mode=1777 \
     --env LLMAO_PAT --env LLMAO_MODEL \
     --mount "type=bind,source=$(pwd)/inputs,target=/inputs,readonly" \
+    --mount "type=bind,source=$LLMAO_REPORT_DIR,target=/reports" \
     --mount "type=bind,source=$LLMAO_WORKSPACE,target=/workspace" \
     --mount "type=bind,source=$LLMAO_WORKSPACE/.git,target=/workspace/.git,readonly" \
     --workdir /workspace \

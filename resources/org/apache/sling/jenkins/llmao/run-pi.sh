@@ -23,6 +23,7 @@ set -eu
 export HOME=/tmp/pi-home
 export PI_CODING_AGENT_DIR=/tmp/pi-agent
 export PI_OFFLINE=1 PI_SKIP_VERSION_CHECK=1 PI_TELEMETRY=0
+export LLMAO_USAGE_FILE=/reports/llmao-usage.json
 export GIT_OPTIONAL_LOCKS=0
 export MAVEN_CONFIG="$HOME/.m2"
 export MAVEN_OPTS="-Duser.home=$HOME"
@@ -45,6 +46,7 @@ exec timeout --kill-after=5s 1500s pi \
     --print --tools read,bash,edit,write,grep,find,ls --no-session \
     --no-extensions --no-mcp --no-skills --no-prompt-templates \
     --extension /inputs/tool-output-logger.mjs \
+    --extension /inputs/usage-reporter.mjs \
     --skill "$HOME/sling-whiteboard/skills" \
     --no-context-files --no-approve \
     --system-prompt /inputs/system-prompt.txt \
