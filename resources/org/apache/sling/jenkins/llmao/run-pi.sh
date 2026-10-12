@@ -43,6 +43,7 @@ exec timeout --kill-after=5s 1500s pi \
     --provider llmao --model "$LLMAO_MODEL" \
     --print --tools read,bash,edit,write,grep,find,ls --no-session \
     --no-extensions --no-mcp --no-skills --no-prompt-templates \
+    --extension /inputs/tool-output-logger.mjs \
     --skill "$HOME/sling-whiteboard/skills" \
     --no-context-files --no-approve \
     --system-prompt /inputs/system-prompt.txt \

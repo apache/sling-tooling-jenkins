@@ -83,7 +83,9 @@ Provide either an input string or an input file; the library has no default task
 
 `llmaoMaxTokens` replaces Pi's default 16,384-token output allowance for this custom model. A smaller allowance may help a request fit within the remaining PAT quota, but does not reset or increase that quota or cap the total tokens used by a multi-step job.
 
-The library runs [Pi](https://pi.dev) in Docker, configured for LLMAO's OpenAI-compatible endpoint at `https://llm.apache.org/v1`, with the selected model and temperature `0.0`. Pi can read, search, edit, and write project files and run shell commands. Extensions, MCP, automatic project instructions, stored sessions, and compaction remain disabled.
+The library runs [Pi](https://pi.dev) in Docker, configured for LLMAO's OpenAI-compatible endpoint at `https://llm.apache.org/v1`, with the selected model and temperature `0.0`. Pi can read, search, edit, and write project files and run shell commands. Automatic extensions, MCP, automatic project instructions, stored sessions, and compaction remain disabled.
+
+A bundled tool-output logger is explicitly loaded. It writes shell commands (up to 2,000 characters), shell-result tails (up to 6,000 characters), and errors from other tools to stderr in the Jenkins console. It redacts the `LLMAO_PAT` value before truncation and does not log successful file reads, prompts, or reasoning. It does not alter tool results or the final SUCCESS/FAILURE response on stdout.
 
 Pi retries transient provider/network errors, including HTTP 429 rate limits, up to 10 times per failed model turn at one-minute intervals. Retries stay in the same Pi session, preserving tool history and edits; provider-level retries remain disabled. This polls for quota recovery rather than parsing LLMAO's custom reset timestamp, and the existing job/process timeouts still apply.
 

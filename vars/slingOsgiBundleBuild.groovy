@@ -219,6 +219,7 @@ def runLlmaoOnlyBuild(def globalConfig, Map params) {
                             }
                             dir('inputs') {
                                 writeFile file: 'run-pi.sh', text: libraryResource('org/apache/sling/jenkins/llmao/run-pi.sh')
+                                writeFile file: 'tool-output-logger.mjs', text: libraryResource('org/apache/sling/jenkins/llmao/tool-output-logger.mjs')
                                 writeFile file: 'system-prompt.txt', text: 'You are a coding assistant working on the checked-out project. Follow the relevant supplied Apache Sling skills; use update-sling-parent-pom for parent POM upgrades. Complete the requested update and its required verification. Do not stage, unstage, commit, push, switch branches, or change Git metadata. Respond with exactly SUCCESS if the update and verification succeeded, or FAILURE otherwise. Do not include punctuation or explanation.', encoding: 'UTF-8'
                                 writeFile file: 'prompt_input.txt', text: contextData, encoding: 'UTF-8'
                                 writeJSON file: 'models.json', json: [
@@ -260,7 +261,7 @@ def runLlmaoOnlyBuild(def globalConfig, Map params) {
                             set +x
                             docker rm --force "$LLMAO_CONTAINER" >/dev/null 2>&1 || true
                             rm -f image/Dockerfile inputs/models.json inputs/settings.json \\
-                              inputs/system-prompt.txt inputs/prompt_input.txt inputs/run-pi.sh
+                              inputs/system-prompt.txt inputs/prompt_input.txt inputs/run-pi.sh inputs/tool-output-logger.mjs
                         '''
                     }
                 }
