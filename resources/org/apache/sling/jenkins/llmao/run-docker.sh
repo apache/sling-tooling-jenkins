@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -18,15 +18,47 @@
 
 set +x
 set -eu
+export GIT_OPTIONAL_LOCKS=0
 
 # Docker containers outlive their client process unless explicitly stopped.
 trap 'docker rm --force "$LLMAO_CONTAINER" >/dev/null 2>&1 || true' EXIT HUP INT TERM
 
-docker run --rm --init \
+checkout_status=$(git -C "$LLMAO_WORKSPACE" status --porcelain)
+if [ -n "$checkout_status" ]; then
+    echo 'The project checkout must be clean before the Pi update.' >&2
+    echo FAILURE
+    exit 1
+fi
+
+status=0
+result=$(docker run --rm --init \
     --name "$LLMAO_CONTAINER" \
     --user "$(id -u):$(id -g)" \
     --read-only --tmpfs /tmp:rw,nosuid,nodev,mode=1777 \
     --env LLMAO_PAT --env LLMAO_MODEL \
     --mount "type=bind,source=$(pwd)/inputs,target=/inputs,readonly" \
-    --workdir /tmp \
-    "$LLMAO_IMAGE" sh /inputs/run-pi.sh
+    --mount "type=bind,source=$LLMAO_WORKSPACE,target=/workspace" \
+    --mount "type=bind,source=$LLMAO_WORKSPACE/.git,target=/workspace/.git,readonly" \
+    --workdir /workspace \
+    "$LLMAO_IMAGE" sh /inputs/run-pi.sh) || status=$?
+
+result=$(printf '%s' "$result" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+if [ "$status" -eq 0 ] && [ "$result" = SUCCESS ]; then
+    echo SUCCESS
+else
+    echo FAILURE
+    if [ "$status" -eq 0 ]; then
+        [ "$result" = FAILURE ] || echo 'Pi did not return exactly SUCCESS or FAILURE.' >&2
+        status=1
+    fi
+fi
+
+# Report partial edits on failure as well. Include new files without staging
+# them, and disable external diff drivers/text converters from the checkout.
+git --no-pager -C "$LLMAO_WORKSPACE" diff --no-ext-diff --no-textconv --binary HEAD --
+while IFS= read -r -d '' file; do
+    git --no-pager -C "$LLMAO_WORKSPACE" diff --no-ext-diff --no-textconv \
+        --no-index --binary -- /dev/null "$file" || test "$?" -eq 1
+done < <(git -C "$LLMAO_WORKSPACE" ls-files --others --exclude-standard -z)
+
+exit "$status"

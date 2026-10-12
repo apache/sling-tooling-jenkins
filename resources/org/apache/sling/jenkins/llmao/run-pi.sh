@@ -23,14 +23,27 @@ set -eu
 export HOME=/tmp/pi-home
 export PI_CODING_AGENT_DIR=/tmp/pi-agent
 export PI_OFFLINE=1 PI_SKIP_VERSION_CHECK=1 PI_TELEMETRY=0
+export GIT_OPTIONAL_LOCKS=0
+export MAVEN_CONFIG="$HOME/.m2"
+export MAVEN_OPTS="-Duser.home=$HOME"
 mkdir -p "$HOME" "$PI_CODING_AGENT_DIR"
 cp /inputs/models.json /inputs/settings.json "$PI_CODING_AGENT_DIR/"
+git config --global --add safe.directory /workspace
+
+# Load all whiteboard skills, including their references and scripts. Keep
+# them outside the project so the resulting diff contains only project edits.
+timeout --kill-after=5s 120s git clone --depth 1 --filter=blob:none --sparse \
+    --branch master https://github.com/apache/sling-whiteboard.git "$HOME/sling-whiteboard" >&2
+git -C "$HOME/sling-whiteboard" sparse-checkout set skills >&2
+printf 'Sling skills revision: ' >&2
+git -C "$HOME/sling-whiteboard" rev-parse HEAD >&2
 
 # Print mode emits only the final assistant text to stdout; errors use stderr.
-exec timeout --kill-after=5s 120s pi \
+exec timeout --kill-after=5s 1500s pi \
     --provider llmao --model "$LLMAO_MODEL" \
-    --print --no-tools --no-session \
+    --print --tools read,bash,edit,write,grep,find,ls --no-session \
     --no-extensions --no-mcp --no-skills --no-prompt-templates \
+    --skill "$HOME/sling-whiteboard/skills" \
     --no-context-files --no-approve \
     --system-prompt /inputs/system-prompt.txt \
     < /inputs/prompt_input.txt

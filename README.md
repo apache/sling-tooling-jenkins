@@ -44,7 +44,7 @@ When the branch job related to the modified `Jenkinsfile` is built, it will use 
 
 ## Calling Apache LLMAO from Jenkins
 
-`slingOsgiBundleBuild(llmaoOnly: true)` runs only an LLMAO request, not the Maven matrix, SonarCloud analysis, deployment, or normal build notifications. Projects using `slingOsgiBundleBuild()` without this argument continue to build as before; they do not call LLMAO.
+`slingOsgiBundleBuild(llmaoOnly: true)` runs a separate Pi automation job, not the normal Maven matrix, SonarCloud analysis, deployment, or normal build notifications. Pi can run Maven as part of verifying its requested changes. Projects using `slingOsgiBundleBuild()` without this argument continue to build as before; they do not call LLMAO.
 
 ### A separate scheduled job
 
@@ -63,7 +63,7 @@ slingOsgiBundleBuild(
     llmaoOnly: true,
     llmaoRebuildFrequency: '', // Manual only; switch to '@weekly' for scheduling.
     llmaoModel: 'gemma4-26b',
-    llmaoInput: "The build failed with error: 'npm ERR! code ERESOLVE'."
+    llmaoInput: 'Update this project to the next parent pom verion and respond only with SUCCESS or FAILURE'
 )
 ```
 
@@ -75,22 +75,26 @@ These settings can be provided as library arguments or under `jenkins` in `.slin
 | --- | --- | --- |
 | `llmaoRebuildFrequency` | `@weekly` | Cron for the dedicated job. Use `''` for manual runs only. |
 | `llmaoModel` | `gemma4-26b` | Model ID available to the PAT on the LLMAO [Models page](https://llm.apache.org/models). |
-| `llmaoInput` | Empty | Error summary to send as the user message. |
-| `llmaoInputFile` | Empty | Workspace-relative UTF-8 file to read instead of `llmaoInput`. |
+| `llmaoInput` | Empty | Task prompt to send to the Pi agent. |
+| `llmaoInputFile` | Empty | Workspace-relative UTF-8 prompt file to read instead of `llmaoInput`. |
 
-Provide either an input string or an input file; the library has no sample input by default and does not fetch logs from another Jenkins job. To supply live data, gather a small, sanitized summary in the dedicated job and pass it as `llmaoInput`. The library allocates its own node and checks out the project; `llmaoInputFile` must exist in that checked-out workspace. Input files are not deleted. Avoid sending secrets or large logs, and check the Models page for who can see your prompts.
+Provide either an input string or an input file; the library has no default task. The library allocates its own node and checks out the project; `llmaoInputFile` must exist in that checked-out workspace. Input files are not deleted. The checkout must be clean before Pi starts, so existing changes are never silently discarded. Avoid exposing secrets to the agent, and check the Models page for who can see prompts and source files.
 
-The library runs [Pi](https://pi.dev) in Docker as a non-interactive LLM client. Pi is configured for LLMAO's OpenAI-compatible endpoint at `https://llm.apache.org/v1`, with the selected model and temperature `0.0`. The existing system prompt and input are passed to Pi, with tools, extensions, MCP, project instructions, stored sessions, automatic retries, and compaction disabled. Pi adds its own working-directory metadata to the system prompt; it cannot inspect the project checkout. Only its final text on stdout is captured as the analysis result.
+The library runs [Pi](https://pi.dev) in Docker, configured for LLMAO's OpenAI-compatible endpoint at `https://llm.apache.org/v1`, with the selected model and temperature `0.0`. Pi can read, search, edit, and write project files and run shell commands. Extensions, MCP, automatic project instructions, stored sessions, retries, and compaction remain disabled.
 
-An exact `RETRY` is reported without retrying the normal project build; `FIX` or an ambiguous answer marks only the LLMAO job unstable. Empty answers, Pi errors, HTTP/network errors, and timeouts fail the LLMAO job. Generated input/configuration files are cleaned up, and raw prompts/responses are not archived or printed.
+Each run fetches `skills/` from the `master` branch of [Apache Sling Whiteboard](https://github.com/apache/sling-whiteboard/tree/master/skills), including references and scripts. All its skills are explicitly available to Pi, including `update-sling-parent-pom`. The fetched Git revision is logged. Skills live outside the project checkout and do not appear in the diff. The parent-POM skill currently targets the latest supported release, not simply the current version plus one.
+
+Pi is instructed to respond only with `SUCCESS` after completing and verifying its update, or `FAILURE` otherwise, without staging, committing, pushing, switching branches, or altering Git metadata. The wrapper maps an exact `SUCCESS` and a successful Pi process to exit code `0`; `FAILURE`, empty/malformed answers, or execution errors return a nonzero exit code and fail the Jenkins job. The final response is kept separate from diff output, so strings in the diff cannot be mistaken for an agent result.
+
+The resulting Git diff is printed to stdout in the Jenkins build log, including partial changes on failure and new, non-ignored files without staging them. Project edits remain in the job workspace for inspection; no commit, push, or automatic recovery is performed. Generated input/configuration files are cleaned up, and sessions are not archived.
 
 ### Docker runtime
 
-The `ubuntu` agent needs a Unix shell and access to a **local Docker daemon**. The daemon must see the executor's temporary workspace at the same absolute path for the input bind mount; containerized executors must share that path with the Docker host. The job also requires the Jenkins Pipeline Utility Steps plugin (`writeJSON`/`readJSON`). No host Node.js, Pi installation, or Jenkins Docker Pipeline plugin is required.
+The `ubuntu` agent needs Bash, Git, and access to a **local Docker daemon**. The daemon must see the project and temporary workspaces at the same absolute paths for bind mounts; containerized executors must share those paths with the Docker host. The job also requires the Jenkins Pipeline Utility Steps plugin (`writeJSON`/`readJSON`). No host Node.js, Java, Maven, Pi installation, or Jenkins Docker Pipeline plugin is required.
 
-The library builds `sling-llmao-pi:1.1.0-node24-d6aa754f` from its [Dockerfile](resources/org/apache/sling/jenkins/llmao/Dockerfile), pinning the official `node:24-bookworm-slim` image by digest and the `@earendil-works/pi-coding-agent` package at version `1.1.0`. Docker's layer cache avoids reinstalling Pi on subsequent runs on that executor. The first uncached build needs access to Docker Hub and the npm registry; the running container needs access to `llm.apache.org`.
+The library builds `sling-llmao-pi:1.1.0-maven21-99e61abc` from its [Dockerfile](resources/org/apache/sling/jenkins/llmao/Dockerfile), pinning the official Node 24 and Maven/Temurin 21 images by digest and Pi at version `1.1.0`. The image includes Java 21, Maven 3.9.16, an `mvn21` wrapper, Git, curl, Python, and ripgrep. Other JDK versions and release credentials are not included. Docker's layer cache avoids reinstalling tools on subsequent runs. An uncached build needs Docker Hub, npm, and Ubuntu package repositories; the running container needs LLMAO, GitHub, Maven repositories, and any documentation needed by the skill.
 
-Image building happens before credential binding and outside stdout capture. The container receives `LLMAO_PAT` from the Jenkins environment, not as a token value in its command line or configuration files. It runs as the Jenkins user's UID/GID, mounts only temporary input files read-only, and keeps its writable configuration in container-local `/tmp`. The Pi process is bounded to 120 seconds, with a five-second forced-termination grace period. Container removal is attempted on shell exit and again in the Pipeline's `finally` block, along with removal of the temporary files. No credentials or sessions are persisted in the image.
+Image building happens before credential binding. The container receives `LLMAO_PAT` from the Jenkins environment, not as a token value in its command line or configuration files. It runs as the Jenkins user's UID/GID with a writable project mount and read-only `.git` and input mounts. Its private configuration, skills checkout, and Maven home/cache live in container-local `/tmp`; host credentials and the Docker socket are not mounted. The Pi process is bounded to 25 minutes within a 30-minute job timeout. Container removal is attempted on shell exit and again in the Pipeline's `finally` block, along with removal of the temporary input/configuration files.
 
 ### Testing
 
@@ -101,11 +105,11 @@ groovy tests/llmao.groovy
 python3 tests/pi-docker.py
 ```
 
-These stub Jenkins steps and Docker/Pi output; they require no credentials or LLMAO access. To exercise the real Docker image and Pi CLI against a local mock OpenAI-compatible gateway:
+These stub Jenkins steps and Docker/Pi output; they require no credentials or LLMAO access. To exercise the real Docker image and Pi CLI against a local mock gateway and a fixture skills repository:
 
 ```sh
-docker build --tag sling-llmao-pi:1.1.0-node24-d6aa754f resources/org/apache/sling/jenkins/llmao
+docker build --tag sling-llmao-pi:1.1.0-maven21-99e61abc resources/org/apache/sling/jenkins/llmao
 python3 tests/pi-docker.py --integration
 ```
 
-The integration test verifies environment-token authentication, model selection, prompt/input preservation, temperature, stdout, empty answers, HTTP errors, cancellation, and container removal. It does not call LLMAO. A real Jenkins run is still required to validate the Pipeline environment and gateway access.
+The integration test exercises skill discovery/loading, real read/edit/write/shell tool calls, Java/Maven availability, environment-token authentication, model selection, tracked/new-file diffs, SUCCESS/FAILURE mapping, malformed/empty answers, API errors, cancellation, and container removal. It uses only disposable fixture projects and does not call LLMAO or update the real project. A real Jenkins run is still required to validate gateway access and the actual parent-POM migration.
