@@ -236,7 +236,13 @@ def runLlmaoOnlyBuild(def globalConfig, Map params) {
                                     ]]
                                 ]
                                 writeJSON file: 'settings.json', json: [
-                                    retry: [enabled: false, provider: [maxRetries: 0]],
+                                    retry: [
+                                        enabled: true,
+                                        maxRetries: 10,
+                                        baseDelayMs: 60000,
+                                        maxAgentDelayMs: 60000,
+                                        provider: [maxRetries: 0]
+                                    ],
                                     compaction: [enabled: false],
                                     cacheWarming: 'off'
                                 ]

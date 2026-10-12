@@ -83,7 +83,9 @@ Provide either an input string or an input file; the library has no default task
 
 `llmaoMaxTokens` replaces Pi's default 16,384-token output allowance for this custom model. A smaller allowance may help a request fit within the remaining PAT quota, but does not reset or increase that quota or cap the total tokens used by a multi-step job.
 
-The library runs [Pi](https://pi.dev) in Docker, configured for LLMAO's OpenAI-compatible endpoint at `https://llm.apache.org/v1`, with the selected model and temperature `0.0`. Pi can read, search, edit, and write project files and run shell commands. Extensions, MCP, automatic project instructions, stored sessions, retries, and compaction remain disabled.
+The library runs [Pi](https://pi.dev) in Docker, configured for LLMAO's OpenAI-compatible endpoint at `https://llm.apache.org/v1`, with the selected model and temperature `0.0`. Pi can read, search, edit, and write project files and run shell commands. Extensions, MCP, automatic project instructions, stored sessions, and compaction remain disabled.
+
+Pi retries transient provider/network errors, including HTTP 429 rate limits, up to 10 times per failed model turn at one-minute intervals. Retries stay in the same Pi session, preserving tool history and edits; provider-level retries remain disabled. This polls for quota recovery rather than parsing LLMAO's custom reset timestamp, and the existing job/process timeouts still apply.
 
 Each run fetches `skills/` from the `master` branch of [Apache Sling Whiteboard](https://github.com/apache/sling-whiteboard/tree/master/skills), including references and scripts. All its skills are explicitly available to Pi, including `update-sling-parent-pom`. The fetched Git revision is logged. Skills live outside the project checkout and do not appear in the diff. The parent-POM skill currently targets the latest supported release, not simply the current version plus one.
 
