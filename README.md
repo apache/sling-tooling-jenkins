@@ -41,3 +41,47 @@ slingOsgiBundleBuild()
 ```
 
 When the branch job related to the modified `Jenkinsfile` is built, it will use the library from `mybranch` instead of `master`. Other jobs are not affected.
+
+## Calling Apache LLMAO from Jenkins
+
+`slingOsgiBundleBuild(llmaoOnly: true)` runs only an LLMAO request, not the Maven matrix, SonarCloud analysis, deployment, or normal build notifications. Projects using `slingOsgiBundleBuild()` without this argument continue to build as before; they do not call LLMAO.
+
+### A separate scheduled job
+
+1. Create a **dedicated Pipeline job** for the project, for example `<project>-llmao`. This library does not create that job automatically.
+2. Give it access to a Jenkins **Secret text** credential with ID `llmao-pat` containing an access token from [Apache LLMAO](https://llm.apache.org/keys). For an automated job, LLMAO's [FAQ](https://llm.apache.org/help/faq) describes requesting a script-specific key.
+3. Configure **Pipeline script from SCM** pointing to the project's repository and intended branch. Use a separate script path such as `Jenkinsfile.llmao`, leaving the normal `Jenkinsfile` unchanged. A library-invocation example is available in [`examples/llmao/Jenkinsfile`](examples/llmao/Jenkinsfile).
+4. Run **Build Now** once. That first run installs the cron trigger; later runs happen on the schedule or whenever you click **Build Now**.
+
+The separate job has its own schedule, build history, result, and concurrency limit. It uses Jenkins' standard cron trigger, so no Parameterized Scheduler plugin is required. LLMAO cron is installed on standalone Pipeline jobs (where `BRANCH_NAME` is unset) or the `master` branch of a multibranch job; feature branches can be run manually. Schedule the intended branch only, and do not expose the credential to untrusted branches or pull requests.
+
+For initial testing, use this as `Jenkinsfile.llmao`:
+
+```groovy
+@Library('sling@mybranch') _
+slingOsgiBundleBuild(
+    llmaoOnly: true,
+    llmaoRebuildFrequency: '', // Manual only; switch to '@weekly' for scheduling.
+    llmaoModel: 'gemma4-26b',
+    llmaoInput: "The build failed with error: 'npm ERR! code ERESOLVE'."
+)
+```
+
+### LLMAO configuration
+
+These settings can be provided as library arguments or under `jenkins` in `.sling-module.json`; arguments take precedence. Only `llmaoOnly: true` in the library invocation selects this mode. It cannot be enabled by the module descriptor.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `llmaoRebuildFrequency` | `@weekly` | Cron for the dedicated job. Use `''` for manual runs only. |
+| `llmaoModel` | `gemma4-26b` | Model ID available to the PAT on the LLMAO [Models page](https://llm.apache.org/models). |
+| `llmaoInput` | Empty | Error summary to send as the user message. |
+| `llmaoInputFile` | Empty | Workspace-relative UTF-8 file to read instead of `llmaoInput`. |
+
+Provide either an input string or an input file; the library has no sample input by default and does not fetch logs from another Jenkins job. To supply live data, gather a small, sanitized summary in the dedicated job and pass it as `llmaoInput`. The library allocates its own node and checks out the project; `llmaoInputFile` must exist in that checked-out workspace. Input files are not deleted. Avoid sending secrets or large logs, and check the Models page for who can see your prompts.
+
+The request uses `https://llm.apache.org/v1/chat/completions` and reads `choices[0].message.content`. An exact `RETRY` is reported without retrying the normal project build; `FIX` or an ambiguous answer marks only the LLMAO job unstable. Empty answers and HTTP/network errors fail the LLMAO job. Generated request files are cleaned up, and raw prompts/responses are not archived or printed.
+
+The `ubuntu` agent needs `curl` and a Unix shell. The job also requires the Jenkins Pipeline Utility Steps plugin (`writeJSON`/`readJSON`).
+
+Offline routing, scheduling, configuration, response-handling, and cleanup checks can be run from the repository root with `groovy tests/llmao.groovy`. They stub Jenkins steps and HTTP responses, so they do not require credentials or call LLMAO. A real Jenkins run is still required to validate the Pipeline environment and gateway access.
