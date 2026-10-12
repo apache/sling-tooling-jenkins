@@ -148,6 +148,7 @@ def runLlmaoOnlyBuild(def globalConfig, Map params) {
     def llmaoConfig = [
         llmaoRebuildFrequency: '@weekly',
         llmaoModel: 'gemma4-26b',
+        llmaoMaxTokens: 4096,
         llmaoInput: '',
         llmaoInputFile: ''
     ]
@@ -168,6 +169,8 @@ def runLlmaoOnlyBuild(def globalConfig, Map params) {
                     if ( params.containsKey(key) )
                         llmaoConfig[key] = params[key]
                 }
+                if ( !(llmaoConfig.llmaoMaxTokens instanceof Integer) || llmaoConfig.llmaoMaxTokens <= 0 )
+                    error('llmaoMaxTokens must be a positive integer.')
             }
 
             stage('Configure Job') {
@@ -227,6 +230,7 @@ def runLlmaoOnlyBuild(def globalConfig, Map params) {
                                         models: [[
                                             id: llmaoConfig.llmaoModel,
                                             input: ['text'],
+                                            maxTokens: llmaoConfig.llmaoMaxTokens,
                                             samplingParams: [temperature: 0.0]
                                         ]]
                                     ]]

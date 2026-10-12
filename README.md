@@ -75,10 +75,13 @@ These settings can be provided as library arguments or under `jenkins` in `.slin
 | --- | --- | --- |
 | `llmaoRebuildFrequency` | `@weekly` | Cron for the dedicated job. Use `''` for manual runs only. |
 | `llmaoModel` | `gemma4-26b` | Model ID available to the PAT on the LLMAO [Models page](https://llm.apache.org/models). |
+| `llmaoMaxTokens` | `4096` | Maximum output tokens per model response; must be a positive integer. |
 | `llmaoInput` | Empty | Task prompt to send to the Pi agent. |
 | `llmaoInputFile` | Empty | Workspace-relative UTF-8 prompt file to read instead of `llmaoInput`. |
 
 Provide either an input string or an input file; the library has no default task. The library allocates its own node and checks out the project; `llmaoInputFile` must exist in that checked-out workspace. Input files are not deleted. The checkout must be clean before Pi starts, so existing changes are never silently discarded. Avoid exposing secrets to the agent, and check the Models page for who can see prompts and source files.
+
+`llmaoMaxTokens` replaces Pi's default 16,384-token output allowance for this custom model. A smaller allowance may help a request fit within the remaining PAT quota, but does not reset or increase that quota or cap the total tokens used by a multi-step job.
 
 The library runs [Pi](https://pi.dev) in Docker, configured for LLMAO's OpenAI-compatible endpoint at `https://llm.apache.org/v1`, with the selected model and temperature `0.0`. Pi can read, search, edit, and write project files and run shell commands. Extensions, MCP, automatic project instructions, stored sessions, retries, and compaction remain disabled.
 
