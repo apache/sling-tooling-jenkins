@@ -60,10 +60,14 @@ fi
 
 # Report partial edits on failure as well. Include new files without staging
 # them, and disable external diff drivers/text converters from the checkout.
+printf 'Pi project diff (exit code %s):\n' "$status"
 git --no-pager -C "$LLMAO_WORKSPACE" diff --no-ext-diff --no-textconv --binary HEAD --
 while IFS= read -r -d '' file; do
     git --no-pager -C "$LLMAO_WORKSPACE" diff --no-ext-diff --no-textconv \
         --no-index --binary -- /dev/null "$file" || test "$?" -eq 1
 done < <(git -C "$LLMAO_WORKSPACE" ls-files --others --exclude-standard -z)
+if [ -z "$(git -C "$LLMAO_WORKSPACE" status --porcelain)" ]; then
+    echo 'No project changes.'
+fi
 
 exit "$status"
