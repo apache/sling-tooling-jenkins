@@ -95,6 +95,108 @@ Pi is instructed to respond only with `SUCCESS` after completing and verifying i
 
 The resulting Git diff is printed to stdout in the Jenkins build log, including partial changes on failure and new, non-ignored files without staging them. Project edits remain in the job workspace for inspection; no commit, push, or automatic recovery is performed. Generated input/configuration files are cleaned up, and sessions are not archived.
 
+### Run the LLMAO Pi setup locally
+
+The commands below run the same Pi version as the Jenkins image, with the same tool allowlist and an explicitly supplied Sling skills directory. They run Pi **inside Docker**, rather than using a host-installed `pi`, so only the selected project checkout is mounted from the host. Docker and a local Docker daemon are required.
+
+Build the image from this repository root:
+
+```sh
+docker build --tag sling-llmao-pi:1.1.0-jdk21-v3 resources/org/apache/sling/jenkins/llmao
+```
+
+Set these paths and model values in Bash, replacing the examples. `SKILLS_DIR` may be the `skills/` root or one skill directory containing `SKILL.md`. `PI_CONFIG_DIR` must be a **minimal** Pi configuration directory containing `models.json` and `settings.json`, and optionally `auth.json`; use the provider/model configuration and credential for the LLM you want to test. Prefer a short-lived credential supplied through an environment variable over storing a key in a file. Do not mount the whole `~/.pi/agent` directory: it can expose unrelated credentials, sessions, extensions, and skills. For LLMAO, set `PI_PROVIDER=llmao`, `PI_MODEL` to a model available to your key, and export `LLMAO_PAT` in the host shell.
+
+```sh
+export PROJECT_DIR="$(realpath /path/to/project-checkout)"
+export SKILLS_DIR="$(realpath /path/to/sling-whiteboard/skills)"
+export PI_CONFIG_DIR="$(realpath /path/to/minimal-pi-config)"
+export PI_PROVIDER=llmao
+export PI_MODEL=gemma4-26b
+# Export LLMAO_PAT using your local secret manager or shell; do not put its value in this file.
+
+# Like the Jenkins job, start from a clean, ordinary Git checkout.
+check_checkout() {
+  if [ ! -d "$PROJECT_DIR/.git" ]; then
+    echo 'Use a normal clone, not a linked worktree.' >&2
+    return 1
+  fi
+  if [ -n "$(git -C "$PROJECT_DIR" status --porcelain)" ]; then
+    echo 'Project checkout must be clean.' >&2
+    return 1
+  fi
+}
+check_checkout
+```
+
+Define a small wrapper that gives the container only the project, its read-only Git metadata, the supplied skills, and the minimal Pi configuration. It starts an interactive TTY when run from a terminal and also works for print mode or piped input.
+
+```bash
+run_pi() {
+  local tty_args=()
+  if [[ -t 0 && -t 1 ]]; then tty_args=(-it); else tty_args=(-i); fi
+
+  docker run --rm --init "${tty_args[@]}" \
+    --user "$(id -u):$(id -g)" \
+    --read-only --tmpfs /tmp:rw,nosuid,nodev,mode=1777 \
+    --cap-drop=ALL --security-opt=no-new-privileges \
+    --env HOME=/tmp/pi-home \
+    --env PI_CODING_AGENT_DIR=/tmp/pi-agent \
+    --env PI_OFFLINE=1 --env PI_SKIP_VERSION_CHECK=1 --env PI_TELEMETRY=0 \
+    --env GIT_OPTIONAL_LOCKS=0 \
+    --env LLMAO_PAT \
+    --mount "type=bind,source=$PROJECT_DIR,target=/workspace" \
+    --mount "type=bind,source=$PROJECT_DIR/.git,target=/workspace/.git,readonly" \
+    --mount "type=bind,source=$SKILLS_DIR,target=/skills,readonly" \
+    --mount "type=bind,source=$PI_CONFIG_DIR,target=/config,readonly" \
+    --workdir /workspace \
+    sling-llmao-pi:1.1.0-jdk21-v3 \
+    sh -c '
+      set -eu
+      mkdir -p "$HOME" "$PI_CODING_AGENT_DIR"
+      cp /config/models.json /config/settings.json "$PI_CODING_AGENT_DIR/"
+      if [ -f /config/auth.json ]; then cp /config/auth.json "$PI_CODING_AGENT_DIR/"; fi
+      git config --global --add safe.directory /workspace
+      export MAVEN_CONFIG="$HOME/.m2"
+      export MAVEN_OPTS="-Duser.home=$HOME"
+      export MAVEN_ARGS="-B -ntp"
+      exec pi "$@"
+    ' pi "$@"
+}
+```
+
+The wrapper forwards `LLMAO_PAT` for the LLMAO provider. For another provider, add only its required environment variable(s) as `--env NAME` options, or put only that provider's credential in the mounted `auth.json`. The container's Pi configuration and Maven home are temporary and are discarded when it exits.
+
+#### Exact non-interactive reproducer
+
+This follows the Jenkins prompt and flags: it selects the LLMAO model, uses the same read/search/edit/write/shell tools, disables automatic extensions/MCP/skills/prompts/context files, and explicitly loads the supplied skills. Change the task text if reproducing a different update.
+
+```sh
+run_pi \
+  --provider "$PI_PROVIDER" --model "$PI_MODEL" \
+  --print --tools read,bash,edit,write,grep,find,ls --no-session \
+  --no-extensions --no-mcp --no-skills --no-prompt-templates \
+  --skill /skills --no-context-files --no-approve \
+  --system-prompt 'You are a coding assistant working on the checked-out project. Follow the relevant supplied Apache Sling skills; use update-sling-parent-pom for upgrades to the most recent released parent POM version. Complete the requested update and its required verification. Java 21 is the only available JDK; mvn and mvn21 both run Maven with Java 21. Do not stage, unstage, commit, push, switch branches, or change Git metadata. Respond with exactly SUCCESS if the update and verification succeeded, or FAILURE otherwise. Do not include punctuation or explanation.' \
+  'Update this project to the most recent released parent POM version and respond only with SUCCESS or FAILURE'
+```
+
+Pi prints its final response to stdout; inspect the resulting project changes on the host with `git -C "$PROJECT_DIR" diff` and `git -C "$PROJECT_DIR" status --short`. Git metadata is mounted read-only, so Pi cannot stage or commit changes.
+
+#### Interactive Pi use
+
+Run the same wrapper without `--print`, retaining the same skill and tool flags:
+
+```sh
+run_pi \
+  --provider "$PI_PROVIDER" --model "$PI_MODEL" \
+  --tools read,bash,edit,write,grep,find,ls --no-session \
+  --no-extensions --no-mcp --no-skills --no-prompt-templates \
+  --skill /skills --no-context-files --no-approve
+```
+
+In the Pi TUI, invoke the relevant skill explicitly when desired, for example `/skill:update-sling-parent-pom`, then describe the task. Both modes mount only `$PROJECT_DIR` from the host as a writable checkout; its `.git` directory is read-only. Other host checkouts, including sibling Sling projects, are not mounted. Files within the selected project directory remain accessible, as do the explicitly mounted skills/configuration. Network access is still available for LLMAO and dependency downloads; this filesystem isolation does not prevent fetching remote repositories. For a linked Git worktree, use a separate ordinary clone: its `.git` file points at shared metadata outside the checkout, which is intentionally not mounted.
+
 ### Per-build token usage
 
 LLMAO builds that reach the submission stage publish a console summary, add the observed total to their build description (for example, `LLMAO: SUCCESS | 18420 tokens`), and archive `llmao-usage.json`. Normal non-LLMAO builds are unaffected. No model prices or monetary cost estimates are configured.
