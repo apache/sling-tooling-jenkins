@@ -40,7 +40,8 @@ git -C "$HOME/sling-whiteboard" sparse-checkout set skills >&2
 printf 'Sling skills revision: ' >&2
 git -C "$HOME/sling-whiteboard" rev-parse HEAD >&2
 
-# Print mode emits only the final assistant text to stdout; errors use stderr.
+# Print mode keeps the final assistant text on stdout for the result check.
+# The output logger sends assistant/progress/tool diagnostics to stderr.
 exec timeout --kill-after=5s 1500s pi \
     --provider llmao --model "$LLMAO_MODEL" \
     --print --tools read,bash,edit,write,grep,find,ls --no-session \

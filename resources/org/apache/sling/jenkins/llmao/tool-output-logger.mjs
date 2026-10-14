@@ -18,24 +18,51 @@
  */
 
 export default function toolOutputLogger(pi) {
-    function log(value, limit = 6000) {
+    function log(value, limit = 6000, prefix = 'Pi tool') {
         let text = String(value ?? '');
         const secret = process.env.LLMAO_PAT;
         if (secret) text = text.split(secret).join('[REDACTED]');
         text = text.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
         if (text.length > limit) text = `[...truncated; last ${limit} characters...]\n${text.slice(-limit)}`;
-        process.stderr.write(`[Pi tool] ${text}\n`);
+        process.stderr.write(`[${prefix}] ${text}\n`);
     }
+
+    function textBlocks(content) {
+        return (Array.isArray(content) ? content : []).filter(block => block?.type === 'text').map(block => block.text).join('\n');
+    }
+
+    function progress(value) {
+        log(value, 6000, 'Pi');
+    }
+
+    pi.on('agent_start', () => { progress('Agent started'); });
+    pi.on('before_provider_request', () => { progress('Requesting the next model response'); });
+
+    pi.on('message_end', event => {
+        const message = event.message;
+        if (message?.role !== 'assistant') return;
+        const output = textBlocks(message.content);
+        if (output) progress(`Assistant output:\n${output}`);
+        progress(`Model response ended: ${message.stopReason ?? 'unknown'}`);
+        if (message.errorMessage) progress(message.errorMessage);
+        if (message.stopReason === 'length') progress('Model output was truncated. Increase llmaoMaxTokens only if the gateway quota allows it.');
+        // Observe only: do not change the assistant message or print reasoning.
+    });
+
+    pi.on('agent_settled', event => { progress(event.aborted ? 'Agent aborted' : 'Agent settled'); });
 
     pi.on('tool_call', event => {
         if (event.toolName === 'bash') log(`bash command:\n${event.input?.command ?? ''}`, 2000);
+        else log(`${event.toolName}: starting${event.input?.path ? ` (${event.input.path})` : ''}${event.input?.pattern ? ` pattern=${event.input.pattern}` : ''}`, 2000);
     });
 
     pi.on('tool_result', event => {
-        if (event.toolName !== 'bash' && !event.isError) return;
         log(`${event.toolName}: ${event.isError ? 'ERROR' : 'OK'}${event.input?.path ? ` (${event.input.path})` : ''}`);
-        const output = (event.content ?? []).filter(block => block.type === 'text').map(block => block.text).join('\n');
-        if (output) log(output);
+        // Keep successful file/skill reads private, but show other tool output.
+        if (event.toolName !== 'read' || event.isError) {
+            const output = textBlocks(event.content);
+            if (output) log(output);
+        }
         // Return nothing: logging must not change the result seen by the model.
     });
 }
