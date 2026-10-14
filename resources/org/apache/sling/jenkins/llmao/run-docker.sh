@@ -32,7 +32,7 @@ fi
 
 status=0
 mkdir -p "$LLMAO_REPORT_DIR"
-result=$(docker run --rm --init \
+docker run --rm --init \
     --name "$LLMAO_CONTAINER" \
     --user "$(id -u):$(id -g)" \
     --read-only --tmpfs /tmp:rw,nosuid,nodev,mode=1777 \
@@ -42,21 +42,10 @@ result=$(docker run --rm --init \
     --mount "type=bind,source=$LLMAO_WORKSPACE,target=/workspace" \
     --mount "type=bind,source=$LLMAO_WORKSPACE/.git,target=/workspace/.git,readonly" \
     --workdir /workspace \
-    "$LLMAO_IMAGE" sh /inputs/run-pi.sh) || status=$?
+    "$LLMAO_IMAGE" sh /inputs/run-pi.sh || status=$?
 
-result=$(printf '%s' "$result" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-if [ "$status" -eq 0 ] && [ "$result" = SUCCESS ]; then
-    echo SUCCESS
-else
-    echo FAILURE
-    if [ "$status" -eq 0 ]; then
-        if [ "$result" != FAILURE ]; then
-            echo 'Pi did not return exactly SUCCESS or FAILURE.' >&2
-            printf 'Unexpected Pi response: <%s>\n' "$result" >&2
-        fi
-        status=1
-    fi
-fi
+# Assistant wording is diagnostic only. Parent and Maven checks in later
+# stages decide whether the requested update actually succeeded.
 
 # Report partial edits on failure as well. Include new files without staging
 # them, and disable external diff drivers/text converters from the checkout.

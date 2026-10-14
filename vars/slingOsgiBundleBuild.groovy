@@ -154,7 +154,7 @@ def runLlmaoOnlyBuild(def globalConfig, Map params) {
     ]
 
     node(globalConfig.mainNodeLabel) {
-        timeout(time: 30, unit: 'MINUTES') {
+        timeout(time: 45, unit: 'MINUTES') {
             stage('Checkout and Load Configuration') {
                 checkout scm
                 if ( fileExists('.sling-module.json') ) {
@@ -223,7 +223,10 @@ def runLlmaoOnlyBuild(def globalConfig, Map params) {
                                 writeFile file: 'run-pi.sh', text: libraryResource('org/apache/sling/jenkins/llmao/run-pi.sh')
                                 writeFile file: 'tool-output-logger.mjs', text: libraryResource('org/apache/sling/jenkins/llmao/tool-output-logger.mjs')
                                 writeFile file: 'usage-reporter.mjs', text: libraryResource('org/apache/sling/jenkins/llmao/usage-reporter.mjs')
-                                writeFile file: 'system-prompt.txt', text: 'You are a coding assistant working on the checked-out project. Follow the relevant supplied Apache Sling skills; use update-sling-parent-pom for upgrades to the most recent released parent POM version. Complete the requested update and its required verification. Java 21 is the only available JDK; mvn and mvn21 both run Maven with Java 21. Do not stage, unstage, commit, push, switch branches, or change Git metadata. Respond with exactly SUCCESS if the update and verification succeeded, or FAILURE otherwise. Do not include punctuation or explanation.', encoding: 'UTF-8'
+                                writeFile file: 'pi-events.mjs', text: libraryResource('org/apache/sling/jenkins/llmao/pi-events.mjs')
+                                writeFile file: 'parent-pom.py', text: libraryResource('org/apache/sling/jenkins/llmao/parent-pom.py')
+                                writeFile file: 'verify-build.sh', text: libraryResource('org/apache/sling/jenkins/llmao/verify-build.sh')
+                                writeFile file: 'system-prompt.txt', text: 'You are a coding assistant working on the checked-out project. Follow the relevant supplied Apache Sling skills; use update-sling-parent-pom for upgrades to the most recent released parent POM version. Read /inputs/expected-parent.json for the independently selected parent coordinates and targetVersion; keep the parent coordinates unchanged and upgrade to that target version. Complete the requested update and its required verification. Java 21 is the only available JDK; mvn and mvn21 both run Maven with Java 21. Do not stage, unstage, commit, push, switch branches, or change Git metadata. Give a concise summary of the changes and verification, including any failures. Jenkins independently checks the parent version and runs mvn clean verify; your final wording does not determine the job result.', encoding: 'UTF-8'
                                 writeFile file: 'prompt_input.txt', text: contextData, encoding: 'UTF-8'
                                 writeJSON file: 'models.json', json: [
                                     providers: [llmao: [
@@ -252,18 +255,60 @@ def runLlmaoOnlyBuild(def globalConfig, Map params) {
                                 ]
                             }
                         }
+                        def expectedParent
+                        stage('Determine Parent Target') {
+                            withEnv(['LLMAO_CHECK=prepare-parent']) {
+                                expectedParent = readJSON(text: sh(
+                                    script: libraryResource('org/apache/sling/jenkins/llmao/run-verification.sh'),
+                                    returnStdout: true
+                                ).trim(), returnPojo: true)
+                            }
+                            // Inputs are mounted read-only for Pi; its writable reports
+                            // cannot change the original parent or selected target.
+                            writeJSON file: 'inputs/expected-parent.json', json: expectedParent
+                            echo "Parent target: ${expectedParent.groupId}:${expectedParent.artifactId} ${expectedParent.version} -> ${expectedParent.targetVersion}"
+                        }
                         stage('Run Pi Task') {
-                            withCredentials([string(credentialsId: 'llmao-pat', variable: 'LLMAO_PAT')]) {
-                                updateStatus = sh(
-                                    script: libraryResource('org/apache/sling/jenkins/llmao/run-docker.sh'),
+                            if ( expectedParent.updateRequired ) {
+                                def piStatus
+                                withCredentials([string(credentialsId: 'llmao-pat', variable: 'LLMAO_PAT')]) {
+                                    piStatus = sh(
+                                        script: libraryResource('org/apache/sling/jenkins/llmao/run-docker.sh'),
+                                        returnStatus: true
+                                    )
+                                }
+                                if ( piStatus != 0 ) {
+                                    updateStatus = piStatus
+                                    error("Pi did not complete normally (exit code ${piStatus}).")
+                                }
+                                echo 'Pi completed normally; independently verifying the update.'
+                            } else {
+                                echo 'No parent update needed; skipping Pi and verifying the existing project.'
+                            }
+                        }
+                        stage('Verify Parent Update') {
+                            def parentStatus
+                            withEnv(['LLMAO_CHECK=check-parent']) {
+                                parentStatus = sh(
+                                    script: libraryResource('org/apache/sling/jenkins/llmao/run-verification.sh'),
                                     returnStatus: true
                                 )
                             }
-                            // Attribute update failures to the task, not a later response stage.
-                            if ( updateStatus == 0 ) {
-                                echo 'Pi completed the project update successfully.'
-                            } else {
-                                error("Pi could not complete the project update (exit code ${updateStatus}).")
+                            if ( parentStatus != 0 ) {
+                                updateStatus = parentStatus
+                                error("Parent POM update verification failed (exit code ${parentStatus}).")
+                            }
+                        }
+                        stage('Verify Updated Project') {
+                            timeout(time: 15, unit: 'MINUTES') {
+                                withEnv(['LLMAO_CHECK=verify-build']) {
+                                    updateStatus = sh(
+                                        script: libraryResource('org/apache/sling/jenkins/llmao/run-verification.sh'),
+                                        returnStatus: true
+                                    )
+                                }
+                                if ( updateStatus != 0 )
+                                    error("Independent mvn clean verify failed (exit code ${updateStatus}).")
                             }
                         }
                     } finally {
@@ -273,6 +318,7 @@ def runLlmaoOnlyBuild(def globalConfig, Map params) {
                                 sh '''
                                     set +x
                                     docker rm --force "$LLMAO_CONTAINER" >/dev/null 2>&1 || true
+                                    docker rm --force "${LLMAO_CONTAINER}-verify" >/dev/null 2>&1 || true
                                 '''
                                 dir(reportDirectory) {
                                     publishLlmaoUsage(llmaoConfig.llmaoModel, updateStatus)
@@ -284,7 +330,8 @@ def runLlmaoOnlyBuild(def globalConfig, Map params) {
                                     set +x
                                     rm -f image/Dockerfile inputs/models.json inputs/settings.json \\
                                       inputs/system-prompt.txt inputs/prompt_input.txt inputs/run-pi.sh \\
-                                      inputs/tool-output-logger.mjs inputs/usage-reporter.mjs
+                                      inputs/tool-output-logger.mjs inputs/usage-reporter.mjs inputs/pi-events.mjs \\
+                                      inputs/parent-pom.py inputs/expected-parent.json inputs/verify-build.sh
                                     rm -f "$LLMAO_REPORT_DIR/llmao-usage.json" "$LLMAO_REPORT_DIR/llmao-usage.json.tmp"
                                     rmdir "$LLMAO_REPORT_DIR" >/dev/null 2>&1 || true
                                 '''

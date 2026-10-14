@@ -44,7 +44,7 @@ When the branch job related to the modified `Jenkinsfile` is built, it will use 
 
 ## Calling Apache LLMAO from Jenkins
 
-`slingOsgiBundleBuild(llmaoOnly: true)` runs a separate Pi automation job, not the normal Maven matrix, SonarCloud analysis, deployment, or normal build notifications. Pi can run Maven as part of verifying its requested changes. Projects using `slingOsgiBundleBuild()` without this argument continue to build as before; they do not call LLMAO.
+`slingOsgiBundleBuild(llmaoOnly: true)` runs a separate Pi parent-POM upgrade job, not the normal Maven matrix, SonarCloud analysis, deployment, or normal build notifications. Pi can run Maven as part of verifying its requested changes; Jenkins independently checks the resulting parent version and runs Maven afterward. Projects using `slingOsgiBundleBuild()` without this argument continue to build as before; they do not call LLMAO.
 
 The dedicated job's stages reflect the local agent workflow:
 
@@ -52,9 +52,12 @@ The dedicated job's stages reflect the local agent workflow:
 2. **Configure Job** — apply scheduling, retention, and concurrency settings, then read and validate the task input.
 3. **Build Pi Image** — build or reuse the cached Docker image, without binding credentials.
 4. **Prepare Pi Task** — write the prompts, model settings, runtime script, and bundled extensions outside the checkout.
-5. **Run Pi Task** — run the agent, including skill loading, LLMAO requests, project edits, verification, and diff output. An unsuccessful task fails this stage.
-6. **Publish Token Usage** — stop any remaining container and summarize and archive observed usage, also after build or task failures.
-7. **Clean Up** — remove generated runtime inputs and temporary reports, leaving project edits untouched.
+5. **Determine Parent Target** — parse the original parent and independently select its latest numeric release from Maven Central. Preserve this expectation in a read-only agent input.
+6. **Run Pi Task** — run the agent, including skill loading, LLMAO requests, project edits, verification, and diff output. Process errors, incomplete responses, and cancellation fail this stage; assistant wording is diagnostic only. Skip Pi when the parent is already current.
+7. **Verify Parent Update** — require unchanged parent coordinates and the independently selected target version.
+8. **Verify Updated Project** — run `mvn -B -ntp clean verify` in a fresh container using the same pinned Java 21/Maven image, without Pi or the LLMAO credential. Maven's actual exit status determines this stage's result.
+9. **Publish Token Usage** — stop any remaining containers and summarize and archive observed usage, also after build, task, or verification failures.
+10. **Clean Up** — remove generated runtime inputs and temporary reports, leaving project edits untouched.
 
 ### A separate scheduled job
 
@@ -73,7 +76,7 @@ slingOsgiBundleBuild(
     llmaoOnly: true,
     llmaoRebuildFrequency: '', // Manual only; switch to '@weekly' for scheduling.
     llmaoModel: 'gemma4-26b',
-    llmaoInput: 'Update this project to the most recent released parent POM version and respond only with SUCCESS or FAILURE'
+    llmaoInput: 'Update this project to the most recent released parent POM version'
 )
 ```
 
@@ -89,19 +92,19 @@ These settings can be provided as library arguments or under `jenkins` in `.slin
 | `llmaoInput` | Empty | Task prompt to send to the Pi agent. |
 | `llmaoInputFile` | Empty | Workspace-relative UTF-8 prompt file to read instead of `llmaoInput`. |
 
-Provide either an input string or an input file; the library has no default task. The library allocates its own node and checks out the project; `llmaoInputFile` must exist in that checked-out workspace. Input files are not deleted. The checkout must be clean before Pi starts, so existing changes are never silently discarded. Avoid exposing secrets to the agent, and check the Models page for who can see prompts and source files.
+Provide either an input string or an input file describing the parent upgrade; the library has no default task. Deterministic verification supports `org.apache.sling:sling-parent` and `org.apache.sling:sling-bundle-parent` with explicit numeric release versions. Missing/unsupported parents, unresolved version properties, unavailable metadata, or metadata older than the current parent fail before Pi starts. The library allocates its own node and checks out the project; `llmaoInputFile` must exist in that checked-out workspace. Input files are not deleted. The checkout must be clean before target selection, so existing changes are never silently discarded. Avoid exposing secrets to the agent, and check the Models page for who can see prompts and source files.
 
 `llmaoMaxTokens` replaces Pi's default 16,384-token output allowance for this custom model. A smaller allowance may help a request fit within the remaining PAT quota, but does not reset or increase that quota or cap the total tokens used by a multi-step job.
 
 The library runs [Pi](https://pi.dev) in Docker, configured for LLMAO's OpenAI-compatible endpoint at `https://llm.apache.org/v1`, with the selected model and temperature `0.0`. Pi can read, search, edit, and write project files and run shell commands. Automatic extensions, MCP, automatic project instructions, stored sessions, and compaction remain disabled.
 
-A bundled output logger is explicitly loaded. It writes Pi's assistant text, model-response stop reasons/errors, agent/request progress, tool starts and completion status, and tool-result tails to stderr in the Jenkins console. Tool-call summaries include shell commands, paths, and search patterns (up to 2,000 characters), but not file contents supplied to edit/write tools. Assistant text and tool results are limited to their last 6,000 characters; successful file/skill-read contents, prompts, images, and reasoning are not logged. The logger redacts the `LLMAO_PAT` value before truncation and strips ANSI color codes. It does not alter assistant messages, tool results, or the final SUCCESS/FAILURE response on stdout.
+A bundled output logger is explicitly loaded. It writes Pi's assistant text, model-response stop reasons/errors, agent/request progress, tool starts and completion status, and tool-result tails to stderr in the Jenkins console. Tool-call summaries include shell commands, paths, and search patterns (up to 2,000 characters), but not file contents supplied to edit/write tools. Assistant text and tool results are limited to their last 6,000 characters; successful file/skill-read contents, prompts, images, and reasoning are not logged. The logger redacts the `LLMAO_PAT` value before truncation and strips ANSI color codes. It does not alter assistant messages or tool results. A JSON lifecycle adapter checks normal completion without exposing protocol records or interpreting assistant prose.
 
 Pi retries transient provider/network errors, including HTTP 429 rate limits, up to 10 times per failed model turn at one-minute intervals. Retries stay in the same Pi session, preserving tool history and edits; provider-level retries remain disabled. This polls for quota recovery rather than parsing LLMAO's custom reset timestamp, and the existing job/process timeouts still apply.
 
 Each run fetches `skills/` from the `master` branch of [Apache Sling Whiteboard](https://github.com/apache/sling-whiteboard/tree/master/skills), including references and scripts. All its skills are explicitly available to Pi, including `update-sling-parent-pom`. The fetched Git revision is logged. Skills live outside the project checkout and do not appear in the diff. The parent-POM skill currently targets the latest supported release, not simply the current version plus one.
 
-Pi is instructed to respond only with `SUCCESS` after completing and verifying its update, or `FAILURE` otherwise, without staging, committing, pushing, switching branches, or altering Git metadata. The wrapper maps an exact `SUCCESS` and a successful Pi process to exit code `0`; `FAILURE`, empty/malformed answers, or execution errors return a nonzero exit code and fail the Jenkins job. The final response is kept separate from diff output, so strings in the diff cannot be mistaken for an agent result.
+Pi is instructed to summarize its changes and verification, without staging, committing, pushing, switching branches, or altering Git metadata. It must use the independently selected parent target, which it can read but cannot overwrite. The job requires a normally completed Pi process, unchanged parent coordinates with the target version, and a successful independent Maven build. Neither `SUCCESS` nor `FAILURE` in assistant text or a diff decides the result. If the parent is already current, the job explicitly reports that no update is needed, skips Pi and credential binding, and still verifies the parent and build. These checks establish the parent version and buildability; they do not replace review of the generated diff.
 
 The resulting Git diff is printed to stdout in the Jenkins build log, including partial changes on failure and new, non-ignored files without staging them. Project edits remain in the job workspace for inspection; no commit, push, or automatic recovery is performed. Generated input/configuration files are cleaned up, and sessions are not archived.
 
@@ -177,9 +180,9 @@ run_pi() {
 
 The wrapper forwards `LLMAO_PAT` for the LLMAO provider. For another provider, add only its required environment variable(s) as `--env NAME` options, or put only that provider's credential in the mounted `auth.json`. The container's Pi configuration and Maven home are temporary and are discarded when it exits.
 
-#### Exact non-interactive reproducer
+#### Agent-only non-interactive reproducer
 
-This follows the Jenkins prompt and flags: it selects the LLMAO model, uses the same read/search/edit/write/shell tools, disables automatic extensions/MCP/skills/prompts/context files, and explicitly loads the supplied skills. Change the task text if reproducing a different update.
+This selects the LLMAO model, uses the same read/search/edit/write/shell tools, disables automatic extensions/MCP/skills/prompts/context files, and explicitly loads the supplied skills. Unlike the Jenkins job, it uses plain print output and does not supply an independently selected parent target. Change the task text if reproducing a different update.
 
 ```sh
 run_pi \
@@ -187,11 +190,11 @@ run_pi \
   --print --tools read,bash,edit,write,grep,find,ls --no-session \
   --no-extensions --no-mcp --no-skills --no-prompt-templates \
   --skill /skills --no-context-files --no-approve \
-  --system-prompt 'You are a coding assistant working on the checked-out project. Follow the relevant supplied Apache Sling skills; use update-sling-parent-pom for upgrades to the most recent released parent POM version. Complete the requested update and its required verification. Java 21 is the only available JDK; mvn and mvn21 both run Maven with Java 21. Do not stage, unstage, commit, push, switch branches, or change Git metadata. Respond with exactly SUCCESS if the update and verification succeeded, or FAILURE otherwise. Do not include punctuation or explanation.' \
-  'Update this project to the most recent released parent POM version and respond only with SUCCESS or FAILURE'
+  --system-prompt 'You are a coding assistant working on the checked-out project. Follow the relevant supplied Apache Sling skills; use update-sling-parent-pom for upgrades to the most recent released parent POM version. Complete the requested update and its required verification. Java 21 is the only available JDK; mvn and mvn21 both run Maven with Java 21. Do not stage, unstage, commit, push, switch branches, or change Git metadata. Give a concise summary of the changes and verification, including any failures.' \
+  'Update this project to the most recent released parent POM version'
 ```
 
-Pi prints its final response to stdout; inspect the resulting project changes on the host with `git -C "$PROJECT_DIR" diff` and `git -C "$PROJECT_DIR" status --short`. Git metadata is mounted read-only, so Pi cannot stage or commit changes.
+This local print-mode command does not include Jenkins' independent target selection and verification stages. Pi prints its final response to stdout; inspect the resulting project changes on the host with `git -C "$PROJECT_DIR" diff` and `git -C "$PROJECT_DIR" status --short`. Git metadata is mounted read-only, so Pi cannot stage or commit changes.
 
 #### Interactive Pi use
 
@@ -214,7 +217,7 @@ LLMAO builds that reach the image-build stage publish a console summary, add the
 A dedicated Pi extension collects gateway-reported usage across all model responses, including tool-calling turns and any usage reported on failed or retried turns. The report contains:
 
 - `provider`, `model`, and Jenkins `build` metadata (`job`, `number`, and `url`).
-- `result` (`SUCCESS`, `FAILURE`, or `INCOMPLETE` when no process exit code was returned), `exitCode`, Pi `state`, and `aborted`.
+- `result` (`SUCCESS` only after independent verification, `FAILURE` for a failed Pi/parent/build check, or `INCOMPLETE` when the checks did not finish), `exitCode` (the failing check's exit code, or zero after all checks pass), Pi `state`, and `aborted`.
 - `requests` (provider request attempts), `responsesWithUsage`, and `responsesWithoutUsage`. Counters are `null` and Pi state is `unknown` if the reporter could not produce a file.
 - `tokens`: `input` (uncached input), `output`, `cacheRead`, `cacheWrite`, and `total`. Cached input is counted separately, not added to input twice; reasoning tokens are already included in output.
 - `usageStatus`: `complete` if Pi settled without interruption and every response reported usage; `partial` if only some usage is available or the run was interrupted; `unavailable` if no valid usage was reported. `tokens` is `null` for unavailable usage, rather than a misleading zero. A gateway-reported zero remains zero.
@@ -231,7 +234,7 @@ The library builds `sling-llmao-pi:1.1.0-jdk21-v3` from its [Dockerfile](resourc
 
 Java 21 is the only available JDK. Both `mvn` and the `mvn21` wrapper use it, and Pi is told to use these commands. No `mvn8`, `mvn11`, or `mvn17` wrappers are installed. `MAVEN_ARGS='-B -ntp'` applies batch mode and suppresses download-progress output for both Maven commands, even when a skill invokes `mvn clean verify` without those flags.
 
-Image building happens before credential binding. The container receives `LLMAO_PAT` from the Jenkins environment, not as a token value in its command line or configuration files. It runs as the Jenkins user's UID/GID with writable project and usage-report mounts and read-only `.git` and input mounts. Its private configuration, skills checkout, and Maven home/cache live in container-local `/tmp`; host credentials and the Docker socket are not mounted. The Pi process is bounded to 25 minutes within a 30-minute job timeout. Container removal is attempted on shell exit and again in the Pipeline's `finally` block, along with removal of the temporary input/configuration files.
+Image building and target selection happen before credential binding. The Pi container receives `LLMAO_PAT` from the Jenkins environment, not as a token value in its command line or configuration files. It runs as the Jenkins user's UID/GID with writable project and usage-report mounts and read-only `.git` and input mounts. Its private configuration, skills checkout, and Maven home/cache live in container-local `/tmp`; host credentials and the Docker socket are not mounted. Verification uses fresh containers with no PAT or writable report mount. The Pi process is bounded to 25 minutes and independent Maven verification to 15 minutes within a 45-minute job timeout. Container removal is attempted on shell exit and again in the Pipeline's `finally` block, along with removal of the temporary input/configuration files.
 
 ### Testing
 
@@ -241,6 +244,8 @@ Run offline checks from the repository root:
 groovy tests/llmao.groovy
 node tests/tool-output-logger.mjs
 node tests/usage-reporter.mjs
+node tests/pi-events.mjs
+python3 tests/verification.py
 python3 tests/pi-docker.py
 ```
 
@@ -249,6 +254,7 @@ These stub Jenkins steps and Docker/Pi output; they require no credentials or LL
 ```sh
 docker build --tag sling-llmao-pi:1.1.0-jdk21-v3 resources/org/apache/sling/jenkins/llmao
 python3 tests/pi-docker.py --integration
+python3 tests/verification.py --integration
 ```
 
-The integration test exercises skill discovery/loading, real read/edit/write/find/shell tool calls, assistant/progress/tool console output with private read contents, Java 21 with both Maven commands and the absence of older JDKs/wrappers, Maven batch-mode settings, environment-token authentication, model selection, tracked/new-file diffs, SUCCESS/FAILURE mapping, malformed/empty answers, API errors, multi-turn token/cache totals, retries, missing/zero usage, cancellation, and container removal. It uses only disposable fixture projects and does not call LLMAO or update the real project. A real Jenkins run is still required to validate gateway access, usage artifact publishing, and the actual parent-POM migration.
+The offline tests cover latest-release selection, XML namespaces, unchanged/wrong parent versions and coordinates, already-current parents, credential-free verification mounts and exit codes, lifecycle failures, independent-stage failures, usage publishing, and cleanup. The Pi integration test exercises skill discovery/loading, real read/edit/write/find/shell tool calls, assistant/progress/tool console output with private read contents, Java 21 with both Maven commands and the absence of older JDKs/wrappers, Maven batch-mode settings, environment-token authentication, model selection, tracked/new-file diffs, prose/empty answers without a status protocol, API errors, multi-turn token/cache totals, retries, missing/zero usage, cancellation, and container removal. The verification integration test uses live Maven Central metadata and real Maven to check an unchanged parent, an updated parent, a passing fixture build, and a failing fixture build. Both use only disposable fixture projects and do not call LLMAO or update the real project. A real Jenkins run is still required to validate gateway access, usage artifact publishing, and the actual parent-POM migration.
