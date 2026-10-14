@@ -155,7 +155,7 @@ def runLlmaoOnlyBuild(def globalConfig, Map params) {
 
     node(globalConfig.mainNodeLabel) {
         timeout(time: 30, unit: 'MINUTES') {
-            stage('Init') {
+            stage('Checkout and Load Configuration') {
                 checkout scm
                 if ( fileExists('.sling-module.json') ) {
                     def overrides = readJSON(file: '.sling-module.json', returnPojo: true).jenkins ?: [:]
@@ -173,6 +173,7 @@ def runLlmaoOnlyBuild(def globalConfig, Map params) {
                     error('llmaoMaxTokens must be a positive integer.')
             }
 
+            def contextData
             stage('Configure Job') {
                 def jobTriggers = []
                 // Standalone Pipeline jobs have no BRANCH_NAME. Feature branches
@@ -184,10 +185,6 @@ def runLlmaoOnlyBuild(def globalConfig, Map params) {
                     buildDiscarder(logRotator(numToKeepStr: '10')),
                     disableConcurrentBuilds()
                 ])
-            }
-
-            def contextData
-            stage('Prepare LLMAO Input') {
                 contextData = llmaoConfig.llmaoInputFile ?
                     readFile(file: llmaoConfig.llmaoInputFile, encoding: 'UTF-8').trim() :
                     llmaoConfig.llmaoInput.trim()
@@ -213,13 +210,15 @@ def runLlmaoOnlyBuild(def globalConfig, Map params) {
                     "LLMAO_REPORT_DIR=${pwd()}/${reportDirectory}"
                 ]) {
                     try {
-                        stage('Submit to LLMAO') {
+                        stage('Build Pi Image') {
                             // Build before binding credentials or capturing stdout. Docker
                             // reuses the cached layers on subsequent runs on this executor.
                             dir('image') {
                                 writeFile file: 'Dockerfile', text: libraryResource('org/apache/sling/jenkins/llmao/Dockerfile')
                                 sh 'docker build --tag "$LLMAO_IMAGE" .'
                             }
+                        }
+                        stage('Prepare Pi Task') {
                             dir('inputs') {
                                 writeFile file: 'run-pi.sh', text: libraryResource('org/apache/sling/jenkins/llmao/run-pi.sh')
                                 writeFile file: 'tool-output-logger.mjs', text: libraryResource('org/apache/sling/jenkins/llmao/tool-output-logger.mjs')
@@ -252,42 +251,46 @@ def runLlmaoOnlyBuild(def globalConfig, Map params) {
                                     cacheWarming: 'off'
                                 ]
                             }
+                        }
+                        stage('Run Pi Task') {
                             withCredentials([string(credentialsId: 'llmao-pat', variable: 'LLMAO_PAT')]) {
                                 updateStatus = sh(
                                     script: libraryResource('org/apache/sling/jenkins/llmao/run-docker.sh'),
                                     returnStatus: true
                                 )
                             }
+                            // Attribute update failures to the task, not a later response stage.
+                            if ( updateStatus == 0 ) {
+                                echo 'Pi completed the project update successfully.'
+                            } else {
+                                error("Pi could not complete the project update (exit code ${updateStatus}).")
+                            }
                         }
                     } finally {
                         try {
-                            // Stop writes before archiving, including on Jenkins cancellation.
-                            sh '''
-                                set +x
-                                docker rm --force "$LLMAO_CONTAINER" >/dev/null 2>&1 || true
-                            '''
-                            dir(reportDirectory) {
-                                publishLlmaoUsage(llmaoConfig.llmaoModel, updateStatus)
+                            stage('Publish Token Usage') {
+                                // Stop writes before archiving, including on Jenkins cancellation.
+                                sh '''
+                                    set +x
+                                    docker rm --force "$LLMAO_CONTAINER" >/dev/null 2>&1 || true
+                                '''
+                                dir(reportDirectory) {
+                                    publishLlmaoUsage(llmaoConfig.llmaoModel, updateStatus)
+                                }
                             }
                         } finally {
-                            sh '''
-                                set +x
-                                rm -f image/Dockerfile inputs/models.json inputs/settings.json \\
-                                  inputs/system-prompt.txt inputs/prompt_input.txt inputs/run-pi.sh \\
-                                  inputs/tool-output-logger.mjs inputs/usage-reporter.mjs
-                                rm -f "$LLMAO_REPORT_DIR/llmao-usage.json" "$LLMAO_REPORT_DIR/llmao-usage.json.tmp"
-                                rmdir "$LLMAO_REPORT_DIR" >/dev/null 2>&1 || true
-                            '''
+                            stage('Clean Up') {
+                                sh '''
+                                    set +x
+                                    rm -f image/Dockerfile inputs/models.json inputs/settings.json \\
+                                      inputs/system-prompt.txt inputs/prompt_input.txt inputs/run-pi.sh \\
+                                      inputs/tool-output-logger.mjs inputs/usage-reporter.mjs
+                                    rm -f "$LLMAO_REPORT_DIR/llmao-usage.json" "$LLMAO_REPORT_DIR/llmao-usage.json.tmp"
+                                    rmdir "$LLMAO_REPORT_DIR" >/dev/null 2>&1 || true
+                                '''
+                            }
                         }
                     }
-                }
-            }
-
-            stage('Process LLMAO Response') {
-                if ( updateStatus == 0 ) {
-                    echo 'Pi completed the project update successfully.'
-                } else {
-                    error("Pi could not complete the project update (exit code ${updateStatus}).")
                 }
             }
         }

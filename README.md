@@ -46,6 +46,16 @@ When the branch job related to the modified `Jenkinsfile` is built, it will use 
 
 `slingOsgiBundleBuild(llmaoOnly: true)` runs a separate Pi automation job, not the normal Maven matrix, SonarCloud analysis, deployment, or normal build notifications. Pi can run Maven as part of verifying its requested changes. Projects using `slingOsgiBundleBuild()` without this argument continue to build as before; they do not call LLMAO.
 
+The dedicated job's stages reflect the local agent workflow:
+
+1. **Checkout and Load Configuration** — check out the project and resolve module settings and library arguments.
+2. **Configure Job** — apply scheduling, retention, and concurrency settings, then read and validate the task input.
+3. **Build Pi Image** — build or reuse the cached Docker image, without binding credentials.
+4. **Prepare Pi Task** — write the prompts, model settings, runtime script, and bundled extensions outside the checkout.
+5. **Run Pi Task** — run the agent, including skill loading, LLMAO requests, project edits, verification, and diff output. An unsuccessful task fails this stage.
+6. **Publish Token Usage** — stop any remaining container and summarize and archive observed usage, also after build or task failures.
+7. **Clean Up** — remove generated runtime inputs and temporary reports, leaving project edits untouched.
+
 ### A separate scheduled job
 
 1. Create a **dedicated Pipeline job** for the project, for example `<project>-llmao`. This library does not create that job automatically.
@@ -199,7 +209,7 @@ In the Pi TUI, invoke the relevant skill explicitly when desired, for example `/
 
 ### Per-build token usage
 
-LLMAO builds that reach the submission stage publish a console summary, add the observed total to their build description (for example, `LLMAO: SUCCESS | 18420 tokens`), and archive `llmao-usage.json`. Normal non-LLMAO builds are unaffected. No model prices or monetary cost estimates are configured.
+LLMAO builds that reach the image-build stage publish a console summary, add the observed total to their build description (for example, `LLMAO: SUCCESS | 18420 tokens`), and archive `llmao-usage.json`. Normal non-LLMAO builds are unaffected. No model prices or monetary cost estimates are configured.
 
 A dedicated Pi extension collects gateway-reported usage across all model responses, including tool-calling turns and any usage reported on failed or retried turns. The report contains:
 
