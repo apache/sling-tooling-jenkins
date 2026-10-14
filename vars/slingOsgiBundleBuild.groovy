@@ -152,6 +152,17 @@ def runLlmaoOnlyBuild(def globalConfig, Map params) {
         llmaoInput: '',
         llmaoInputFile: ''
     ]
+    // Publishing targets and credential selection belong to the trusted job
+    // invocation, never to the module descriptor or the agent's output.
+    def publishingConfig = [
+        llmaoPublish: false,
+        llmaoForkRepository: '',
+        llmaoUpstreamRepository: '',
+        llmaoBaseBranch: 'master',
+        llmaoGithubCredentialsId: '',
+        llmaoGitAuthorName: 'LLMAO Jenkins',
+        llmaoGitAuthorEmail: 'llmao@jenkins.invalid'
+    ]
 
     node(globalConfig.mainNodeLabel) {
         timeout(time: 45, unit: 'MINUTES') {
@@ -171,6 +182,21 @@ def runLlmaoOnlyBuild(def globalConfig, Map params) {
                 }
                 if ( !(llmaoConfig.llmaoMaxTokens instanceof Integer) || llmaoConfig.llmaoMaxTokens <= 0 )
                     error('llmaoMaxTokens must be a positive integer.')
+                publishingConfig.keySet().each { key ->
+                    if ( params.containsKey(key) )
+                        publishingConfig[key] = params[key]
+                }
+                if ( !(publishingConfig.llmaoPublish instanceof Boolean) )
+                    error('llmaoPublish must be a boolean.')
+                if ( publishingConfig.llmaoPublish ) {
+                    ['llmaoForkRepository', 'llmaoUpstreamRepository'].each { key ->
+                        if ( !(publishingConfig[key] instanceof String) ||
+                            !(publishingConfig[key] ==~ /[A-Za-z0-9_-][A-Za-z0-9_.-]*\/[A-Za-z0-9_-][A-Za-z0-9_.-]*/) )
+                            error("${key} must be an owner/repository name.")
+                    }
+                    if ( !publishingConfig.llmaoGithubCredentialsId?.trim() )
+                        error('Provide llmaoGithubCredentialsId when publishing is enabled.')
+                }
             }
 
             def contextData
@@ -193,6 +219,7 @@ def runLlmaoOnlyBuild(def globalConfig, Map params) {
             }
 
             def updateStatus
+            def publication
             def projectWorkspace = pwd()
             // Keep generated files outside the source checkout; leave the input file untouched.
             dir("${pwd(tmp: true)}/llmao") {
@@ -226,6 +253,17 @@ def runLlmaoOnlyBuild(def globalConfig, Map params) {
                                 writeFile file: 'pi-events.mjs', text: libraryResource('org/apache/sling/jenkins/llmao/pi-events.mjs')
                                 writeFile file: 'parent-pom.py', text: libraryResource('org/apache/sling/jenkins/llmao/parent-pom.py')
                                 writeFile file: 'verify-build.sh', text: libraryResource('org/apache/sling/jenkins/llmao/verify-build.sh')
+                                if ( publishingConfig.llmaoPublish ) {
+                                    writeFile file: 'publish-pr.py', text: libraryResource('org/apache/sling/jenkins/llmao/publish-pr.py')
+                                    writeJSON file: 'publish-config.json', json: [
+                                        forkRepository: publishingConfig.llmaoForkRepository,
+                                        upstreamRepository: publishingConfig.llmaoUpstreamRepository,
+                                        baseBranch: publishingConfig.llmaoBaseBranch,
+                                        authorName: publishingConfig.llmaoGitAuthorName,
+                                        authorEmail: publishingConfig.llmaoGitAuthorEmail,
+                                        buildUrl: env.BUILD_URL
+                                    ]
+                                }
                                 writeFile file: 'system-prompt.txt', text: 'You are a coding assistant working on the checked-out project. Follow the relevant supplied Apache Sling skills; use update-sling-parent-pom for upgrades to the most recent released parent POM version. Read /inputs/expected-parent.json for the independently selected parent coordinates and targetVersion; keep the parent coordinates unchanged and upgrade to that target version. Complete the requested update and its required verification. Java 21 is the only available JDK; mvn and mvn21 both run Maven with Java 21. Do not stage, unstage, commit, push, switch branches, or change Git metadata. Give a concise summary of the changes and verification, including any failures. Jenkins independently checks the parent version and runs mvn clean verify; your final wording does not determine the job result.', encoding: 'UTF-8'
                                 writeFile file: 'prompt_input.txt', text: contextData, encoding: 'UTF-8'
                                 writeJSON file: 'models.json', json: [
@@ -253,6 +291,20 @@ def runLlmaoOnlyBuild(def globalConfig, Map params) {
                                     compaction: [enabled: false],
                                     cacheWarming: 'off'
                                 ]
+                            }
+                        }
+                        if ( publishingConfig.llmaoPublish ) {
+                            stage('Prepare Pull Request') {
+                                def plan
+                                withEnv(['LLMAO_PUBLISH_ACTION=prepare']) {
+                                    plan = readJSON(text: sh(
+                                        script: libraryResource('org/apache/sling/jenkins/llmao/run-publishing.sh'),
+                                        returnStdout: true
+                                    ).trim(), returnPojo: true)
+                                }
+                                // Read-only to Pi; its writable reports cannot
+                                // change the base commit or expected branch tip.
+                                writeJSON file: 'inputs/publication-plan.json', json: plan
                             }
                         }
                         def expectedParent
@@ -311,6 +363,38 @@ def runLlmaoOnlyBuild(def globalConfig, Map params) {
                                     error("Independent mvn clean verify failed (exit code ${updateStatus}).")
                             }
                         }
+                        if ( publishingConfig.llmaoPublish ) {
+                            stage('Publish Pull Request') {
+                                if ( expectedParent.updateRequired ) {
+                                    // A cancellation must not retain Maven's
+                                    // success as the overall publishing result.
+                                    updateStatus = null
+                                    withEnv(['LLMAO_PUBLISH_ACTION=publish']) {
+                                        withCredentials([string(credentialsId: publishingConfig.llmaoGithubCredentialsId,
+                                            variable: 'LLMAO_GITHUB_PAT')]) {
+                                            updateStatus = sh(
+                                                script: libraryResource('org/apache/sling/jenkins/llmao/run-publishing.sh'),
+                                                returnStatus: true
+                                            )
+                                        }
+                                    }
+                                    if ( updateStatus != 0 )
+                                        error("Pull request publishing failed (exit code ${updateStatus}).")
+                                    updateStatus = null
+                                    publication = readJSON(file: 'publication/pull-request.json', returnPojo: true)
+                                    if ( !(publication.status in ['created', 'reused', 'skipped']) )
+                                        error('The publishing result has an invalid status.')
+                                    if ( publication.url )
+                                        echo "LLMAO pull request (${publication.status}): ${publication.url}"
+                                    else
+                                        echo 'No project changes to publish.'
+                                    updateStatus = 0
+                                } else {
+                                    publication = [status: 'skipped', reason: 'parent-current']
+                                    echo 'No parent update needed; skipping commit, push, and PR creation.'
+                                }
+                            }
+                        }
                     } finally {
                         try {
                             stage('Publish Token Usage') {
@@ -319,9 +403,10 @@ def runLlmaoOnlyBuild(def globalConfig, Map params) {
                                     set +x
                                     docker rm --force "$LLMAO_CONTAINER" >/dev/null 2>&1 || true
                                     docker rm --force "${LLMAO_CONTAINER}-verify" >/dev/null 2>&1 || true
+                                    docker rm --force "${LLMAO_CONTAINER}-publish" >/dev/null 2>&1 || true
                                 '''
                                 dir(reportDirectory) {
-                                    publishLlmaoUsage(llmaoConfig.llmaoModel, updateStatus)
+                                    publishLlmaoUsage(llmaoConfig.llmaoModel, updateStatus, publication)
                                 }
                             }
                         } finally {
@@ -331,7 +416,9 @@ def runLlmaoOnlyBuild(def globalConfig, Map params) {
                                     rm -f image/Dockerfile inputs/models.json inputs/settings.json \\
                                       inputs/system-prompt.txt inputs/prompt_input.txt inputs/run-pi.sh \\
                                       inputs/tool-output-logger.mjs inputs/usage-reporter.mjs inputs/pi-events.mjs \\
-                                      inputs/parent-pom.py inputs/expected-parent.json inputs/verify-build.sh
+                                       inputs/parent-pom.py inputs/expected-parent.json inputs/verify-build.sh \\
+                                       inputs/publish-pr.py inputs/publish-config.json inputs/publication-plan.json \\
+                                      publication/pull-request.json
                                     rm -f "$LLMAO_REPORT_DIR/llmao-usage.json" "$LLMAO_REPORT_DIR/llmao-usage.json.tmp"
                                     rmdir "$LLMAO_REPORT_DIR" >/dev/null 2>&1 || true
                                 '''
@@ -344,7 +431,7 @@ def runLlmaoOnlyBuild(def globalConfig, Map params) {
     }
 }
 
-def publishLlmaoUsage(def model, def updateStatus) {
+def publishLlmaoUsage(def model, def updateStatus, def publication = null) {
     def report = fileExists('llmao-usage.json') ? readJSON(file: 'llmao-usage.json', returnPojo: true) : [
         schemaVersion: 1, provider: 'llmao', model: model,
         state: 'unknown', aborted: null, usageStatus: 'unavailable',
@@ -353,6 +440,8 @@ def publishLlmaoUsage(def model, def updateStatus) {
     report.build = [job: env.JOB_NAME, number: env.BUILD_NUMBER, url: env.BUILD_URL]
     report.result = updateStatus == null ? 'INCOMPLETE' : updateStatus == 0 ? 'SUCCESS' : 'FAILURE'
     report.exitCode = updateStatus
+    if ( publication != null )
+        report.publication = publication
     def description = "LLMAO: ${report.result}"
     if ( report.tokens != null ) {
         def tokens = report.tokens
@@ -362,6 +451,8 @@ def publishLlmaoUsage(def model, def updateStatus) {
         echo 'LLMAO token usage unavailable; no gateway-reported usage was collected.'
         description += ' | tokens unavailable'
     }
+    if ( publication?.number )
+        description += " | PR #${publication.number}"
     currentBuild.description = description
     writeJSON file: 'llmao-usage.json', json: report
     archiveArtifacts artifacts: 'llmao-usage.json', allowEmptyArchive: false

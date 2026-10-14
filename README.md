@@ -59,6 +59,8 @@ The dedicated job's stages reflect the local agent workflow:
 9. **Publish Token Usage** — stop any remaining containers and summarize and archive observed usage, also after build, task, or verification failures.
 10. **Clean Up** — remove generated runtime inputs and temporary reports, leaving project edits untouched.
 
+Opt-in PR publishing adds **Prepare Pull Request** before target selection (refresh the clean checkout from the configured upstream base and capture the fork branch's tip), and **Publish Pull Request** after independent verification. All other jobs retain the stages above.
+
 ### A separate scheduled job
 
 1. Create a **dedicated Pipeline job** for the project, for example `<project>-llmao`. This library does not create that job automatically.
@@ -106,7 +108,52 @@ Each run fetches `skills/` from the `master` branch of [Apache Sling Whiteboard]
 
 Pi is instructed to summarize its changes and verification, without staging, committing, pushing, switching branches, or altering Git metadata. It must use the independently selected parent target, which it can read but cannot overwrite. The job requires a normally completed Pi process, unchanged parent coordinates with the target version, and a successful independent Maven build. Neither `SUCCESS` nor `FAILURE` in assistant text or a diff decides the result. If the parent is already current, the job explicitly reports that no update is needed, skips Pi and credential binding, and still verifies the parent and build. These checks establish the parent version and buildability; they do not replace review of the generated diff.
 
-The resulting Git diff is printed to stdout in the Jenkins build log, including partial changes on failure and new, non-ignored files without staging them. Project edits remain in the job workspace for inspection; no commit, push, or automatic recovery is performed. Generated input/configuration files are cleaned up, and sessions are not archived.
+The resulting Git diff is printed to stdout in the Jenkins build log, including partial changes on failure and new, non-ignored files without staging them. Project edits remain in the job workspace for inspection. By default, no commit, push, or automatic recovery is performed; successful verified updates can optionally be published as described below. Generated input/configuration files are cleaned up, and sessions are not archived.
+
+### Publish an upstream pull request
+
+Publishing is **disabled by default**. Enable it explicitly in a trusted dedicated job's library invocation, not in `.sling-module.json`. The module descriptor cannot select publishing targets, Git credentials, or author identity. Use a separate Jenkins **Secret text** credential for GitHub; do not reuse the LLMAO gateway's `llmao-pat`.
+
+For the discovery-standalone test fork, use [`examples/llmao/Jenkinsfile.publish`](examples/llmao/Jenkinsfile.publish), or this invocation after making the library changes available on `feat/llmao`:
+
+```groovy
+@Library('sling@feat/llmao') _
+slingOsgiBundleBuild(
+    llmaoOnly: true,
+    llmaoRebuildFrequency: '', // Manual runs until publishing is validated.
+    llmaoInput: 'Update this project to the most recent released parent POM version',
+    llmaoPublish: true,
+    llmaoForkRepository: 'rombert/sling-org-apache-sling-discovery-standalone',
+    llmaoUpstreamRepository: 'apache/sling-org-apache-sling-discovery-standalone',
+    llmaoGithubCredentialsId: 'jenkins-llmao-discovery-standalone'
+)
+```
+
+Only these library arguments control publishing:
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `llmaoPublish` | `false` | Opt into commit, fork push, and upstream PR creation/reuse. Must be a boolean. |
+| `llmaoForkRepository` | Empty | Existing public fork, in `owner/repository` form. Required when publishing. |
+| `llmaoUpstreamRepository` | Empty | Upstream PR repository, in `owner/repository` form. Required when publishing. |
+| `llmaoBaseBranch` | `master` | Upstream base branch to refresh from and target in the PR. |
+| `llmaoGithubCredentialsId` | Empty | Jenkins Secret text credential containing the GitHub PAT. Required when publishing. |
+| `llmaoGitAuthorName` | `LLMAO Jenkins` | Commit author and committer name. |
+| `llmaoGitAuthorEmail` | `llmao@jenkins.invalid` | Commit author and committer email; override with the intended identity, such as your GitHub-provided noreply address. |
+
+For a **single token** that pushes to a public personal fork and opens a PR in a public Apache repository, use a **classic PAT with only `public_repo`**, subject to the upstream organization's token policy and any required authorization. A classic PAT cannot be restricted to one repository: this grants access to public repositories according to its owner's permissions, but not private-repository access. A fine-grained PAT restricted to the personal fork can push there, but cannot create the upstream Apache PR. Keep the Jenkins credential in the dedicated job's folder where possible, and do not make it accessible to untrusted jobs or PR builds.
+
+The publishing workflow:
+
+1. Requires a clean, non-sparse checkout and confirms the configured repository is a public fork of the upstream. Adds `fork` and `llmao-upstream` remotes without changing `origin` or replacing unfamiliar existing remotes. Refreshes the checkout to a detached commit from the configured upstream base **before** Pi runs, so an outdated fork's `master` does not become the PR base.
+2. Captures that base commit and the current remote tip of the fixed **`llmao/update-sling-parent-pom`** branch in a read-only Pi input. No per-build branch is created. Reserve this branch for automation; human work on it can be replaced by later runs.
+3. Runs Pi and both independent checks as before. A failed check never binds the GitHub credential or pushes. An already-current parent skips Pi, committing, pushing, and PR creation.
+4. Uses a fresh publisher container and temporary Git repository to commit the verified tracked/new, non-ignored files. The project is read-only, raw file bytes are hashed without executing project hooks, attribute clean filters, or signing commands, and no project build is run with the GitHub credential. Submodule snapshots and symlink-directory traversal are rejected.
+5. Pushes only the fixed fork branch with **an explicit `--force-with-lease` expected SHA**, including an empty lease when the branch did not exist. Another writer changing or creating the branch during the build causes failure rather than an unconditional overwrite. If upstream advances after preparation, publishing fails and requires a new run; it never rebases an unverified result silently.
+6. Reuses the exact matching open upstream PR, refreshing its title/body with the parent target and Jenkins build link while preserving its existing draft/ready state. Otherwise it creates a **draft PR** against the configured upstream base, not inside the fork; a human can mark it ready for review. A lost PR-creation response triggers a lookup before any retry. Once a previous PR is closed or merged, a later update can use the same branch for a new draft PR. Force-pushing rewrites branch history and can affect existing review approvals.
+7. Logs the PR URL, adds its number to the build description, and includes the publication result in `llmao-usage.json`. Publishing failures fail the job; usage reporting and container/input cleanup still run. A failed PR creation after a successful push leaves the branch available for a subsequent retry.
+
+The GitHub PAT is supplied only to the publisher via an environment variable and an ephemeral Git credential helper, never embedded in a remote URL, command-line argument, input JSON, or committed file. The helper passes credentials over Git's private pipe and persists nothing; it works with the container's noexec `/tmp`. Pi and Maven never receive it. Commits live in the temporary publishing repository and the pushed fork branch; project edits remain unstaged in the Jenkins checkout for inspection. Validate a manual Jenkins run before enabling the weekly schedule.
 
 ### Run the LLMAO Pi setup locally
 
@@ -246,10 +293,11 @@ node tests/tool-output-logger.mjs
 node tests/usage-reporter.mjs
 node tests/pi-events.mjs
 python3 tests/verification.py
+python3 tests/publishing.py
 python3 tests/pi-docker.py
 ```
 
-These stub Jenkins steps and Docker/Pi output; they require no credentials or LLMAO access. To exercise the real Docker image and Pi CLI against a local mock gateway and a fixture skills repository:
+These stub Jenkins steps and Docker/Pi output; they require no credentials or LLMAO access. Publishing tests use disposable local Git repositories and a fake GitHub API to check fixed-branch force pushes, exact PR reuse, closed PRs, concurrent writers, upstream races, lost API responses, credential mounts, failure reporting, and hook/filter isolation. They do not push to GitHub or create real PRs. To exercise the real Docker image and Pi CLI against a local mock gateway and a fixture skills repository:
 
 ```sh
 docker build --tag sling-llmao-pi:1.1.0-jdk21-v3 resources/org/apache/sling/jenkins/llmao
