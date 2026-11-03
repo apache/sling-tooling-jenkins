@@ -204,6 +204,7 @@ def defineStage(def globalConfig, def jobConfig, def jdkVersion, def operatingSy
                 openTasksPublisher(disabled: !isReferenceStage),
                 dependenciesFingerprintPublisher(disabled: !isReferenceStage)
             ] ) {
+            echo "Maven settings diagnostic: MVN_SETTINGS=${env.MVN_SETTINGS ?: '(default agent settings)'}"
             String mvnCommand = "mvn --show-version -U -B -e clean ${goal} ${additionalMavenParams} -Dci"
             if (isUnix()) {
                 sh mvnCommand
