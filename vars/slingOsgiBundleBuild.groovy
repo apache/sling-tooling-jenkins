@@ -207,6 +207,10 @@ def defineStage(def globalConfig, def jobConfig, def jdkVersion, def operatingSy
             echo "Maven settings diagnostic: MVN_SETTINGS=${env.MVN_SETTINGS ?: '(default agent settings)'}"
             String mvnCommand = "mvn --show-version -U -B -e clean ${goal} ${additionalMavenParams} -Dci"
             if (isUnix()) {
+                def diagnosticStatus = sh(returnStatus: true,
+                    script: libraryResource('org/apache/sling/jenkins/maven-settings-diagnostic.sh'))
+                if ( diagnosticStatus != 0 )
+                    echo "Maven settings diagnostic: inspection failed (exit code ${diagnosticStatus}); continuing Maven build."
                 sh mvnCommand
             } else {
                 bat mvnCommand
